@@ -1,0 +1,123 @@
+;;;; types.ct — Coalton DSL type model
+;;;;
+;;;; This is a :ct-file (compiled by coalton-asdf with isolated readtable).
+;;;; It defines only the data model: types, constructors, field accessors,
+;;;; and the PkmnType→String bridge for Prolog queries.
+;;;;
+;;;; No arithmetic involving division lives here — that belongs in the CL
+;;;; battle engine (simulator.lisp) where cl:floor is available directly.
+
+(named-readtables:in-readtable coalton:coalton)
+
+(in-package #:pokemon-sim)
+
+(coalton-toplevel
+
+  ;;; ── Type taxonomy ─────────────────────────────────────────────────────────
+  (define-type PkmnType
+    Normal Fire Water Grass Electric Ice Fighting Poison
+    Ground Flying Psychic Bug Rock Ghost Dragon)
+
+  ;;; ── Status conditions ─────────────────────────────────────────────────────
+  (define-type Status
+    Healthy Poisoned Burned Paralyzed Asleep Frozen)
+
+  ;;; ── Move: name  type  base-power ──────────────────────────────────────────
+  (define-type Move
+    (Move String PkmnType UFix))
+
+  ;;; ── Pokemon battle record ─────────────────────────────────────────────────
+  ;;; name type1 type2? max-hp curr-hp atk def spc spd status
+  (define-type Pokemon
+    (Pokemon String PkmnType (Optional PkmnType) UFix UFix UFix UFix UFix UFix Status))
+
+  ;;; ── Battle outcomes ───────────────────────────────────────────────────────
+  (define-type BattleOutcome
+    (Victor Pokemon)
+    Draw
+    (Ongoing Pokemon Pokemon))
+
+  ;;; ── PkmnType → String ─────────────────────────────────────────────────────
+  ;;; Returns uppercase string; CL glue interns into target package.
+  (declare type->string (PkmnType -> String))
+  (define (type->string t)
+    (match t
+      ((Normal)   "NORMAL")   ((Fire)     "FIRE")
+      ((Water)    "WATER")    ((Grass)    "GRASS")
+      ((Electric) "ELECTRIC") ((Ice)      "ICE")
+      ((Fighting) "FIGHTING") ((Poison)   "POISON")
+      ((Ground)   "GROUND")   ((Flying)   "FLYING")
+      ((Psychic)  "PSYCHIC")  ((Bug)      "BUG")
+      ((Rock)     "ROCK")     ((Ghost)    "GHOST")
+      ((Dragon)   "DRAGON")))
+
+  ;;; ── Field accessors ───────────────────────────────────────────────────────
+  (declare pokemon-name   (Pokemon -> String))
+  (define (pokemon-name   (Pokemon n _ _ _ _ _ _ _ _ _)) n)
+
+  (declare pokemon-hp     (Pokemon -> UFix))
+  (define (pokemon-hp     (Pokemon _ _ _ _ hp _ _ _ _ _)) hp)
+
+  (declare pokemon-max-hp (Pokemon -> UFix))
+  (define (pokemon-max-hp (Pokemon _ _ _ mhp _ _ _ _ _ _)) mhp)
+
+  (declare pokemon-type1  (Pokemon -> PkmnType))
+  (define (pokemon-type1  (Pokemon _ t _ _ _ _ _ _ _ _)) t)
+
+  (declare pokemon-atk    (Pokemon -> UFix))
+  (define (pokemon-atk    (Pokemon _ _ _ _ _ a _ _ _ _)) a)
+
+  (declare pokemon-def    (Pokemon -> UFix))
+  (define (pokemon-def    (Pokemon _ _ _ _ _ _ d _ _ _)) d)
+
+  (declare pokemon-spc    (Pokemon -> UFix))
+  (define (pokemon-spc    (Pokemon _ _ _ _ _ _ _ s _ _)) s)
+
+  (declare pokemon-spd    (Pokemon -> UFix))
+  (define (pokemon-spd    (Pokemon _ _ _ _ _ _ _ _ sp _)) sp)
+
+  (declare pokemon-status (Pokemon -> Status))
+  (define (pokemon-status (Pokemon _ _ _ _ _ _ _ _ _ st)) st)
+
+  (declare move-type      (Move -> PkmnType))
+  (define (move-type      (Move _ t _)) t)
+
+  (declare move-power     (Move -> UFix))
+  (define (move-power     (Move _ _ p)) p)
+
+  ;;; ── Predicate ─────────────────────────────────────────────────────────────
+  (declare fainted? (Pokemon -> Boolean))
+  (define (fainted? p) (== (pokemon-hp p) 0))
+
+  ;;; ── HP modification ───────────────────────────────────────────────────────
+  (declare take-damage (Pokemon -> UFix -> Pokemon))
+  (define (take-damage (Pokemon nm t1 t2 mhp hp atk def spc spd st) dmg)
+    (Pokemon nm t1 t2 mhp
+             (if (> dmg hp) 0 (- hp dmg))
+             atk def spc spd st)))
+
+;;; ─── CL-callable constructor helpers ─────────────────────────────────────────
+;;; These Coalton functions are called from the CL glue layer via
+;;; call-coalton-function. They accept individual CL values and return the
+;;; corresponding Coalton ADT value.
+
+(coalton-toplevel
+
+  ;;; Build a Pokemon from 10 individual fields
+  (declare make-pokemon
+           (String -> PkmnType -> UFix -> UFix -> UFix -> UFix -> UFix -> UFix
+            -> Pokemon))
+  (define (make-pokemon nm t1 mhp hp atk def spc spd)
+    (Pokemon nm t1 None mhp hp atk def spc spd Healthy))
+
+  ;;; Build a Move from name, type, power
+  (declare make-move (String -> PkmnType -> UFix -> Move))
+  (define (make-move nm typ pwr)
+    (Move nm typ pwr))
+
+  ;;; Outcome constructors
+  (declare make-victor (Pokemon -> BattleOutcome))
+  (define (make-victor p) (Victor p))
+
+  (declare make-ongoing (Pokemon -> Pokemon -> BattleOutcome))
+  (define (make-ongoing p1 p2) (Ongoing p1 p2)))
