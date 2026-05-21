@@ -171,37 +171,37 @@
 ;;;; ─── Catalog: species ───────────────────────────────────────────────────────
 
 (fiveam:test pikachu-exists
-  (fiveam:is (not (null (catalog:find-pokemon "Pikachu")))))
+  (fiveam:is (not (null (catalog:find-pokemon (kb) "Pikachu")))))
 
 (fiveam:test pikachu-electric
-  (fiveam:is (eq :electric (catalog:species-type1 (catalog:find-pokemon "Pikachu")))))
+  (fiveam:is (eq :electric (catalog:species-type1 (catalog:find-pokemon (kb) "Pikachu")))))
 
 (fiveam:test mewtwo-exists
-  (fiveam:is (not (null (catalog:find-pokemon "Mewtwo")))))
+  (fiveam:is (not (null (catalog:find-pokemon (kb) "Mewtwo")))))
 
 (fiveam:test exactly-151-pokemon
-  (fiveam:is (= 151 (length catalog:*gen1-yellow-roster*))))
+  (fiveam:is (= 151 (length (catalog:all-pokemon (kb))))))
 
 ;;;; ─── Catalog: moves ─────────────────────────────────────────────────────────
 
 (fiveam:test thunderbolt-exists-and-correct
-  (let ((m (catalog:find-move "Thunderbolt")))
+  (let ((m (catalog:find-move (kb) "Thunderbolt")))
     (fiveam:is (not (null m)))
     (fiveam:is (eq  :electric (catalog:move-type m)))
     (fiveam:is (=   95 (catalog:move-power m)))))
 
 (fiveam:test surf-exists
-  (fiveam:is (not (null (catalog:find-move "Surf")))))
+  (fiveam:is (not (null (catalog:find-move (kb) "Surf")))))
 
 ;;;; ─── Catalog: items ─────────────────────────────────────────────────────────
 
 (fiveam:test potion-in-catalog
-  (fiveam:is (not (null (catalog:find-item "Potion")))))
+  (fiveam:is (not (null (catalog:find-item (kb) "Potion")))))
 
 ;;;; ─── Catalog: make-battle-mon ──────────────────────────────────────────────
 
 (fiveam:test make-battle-mon-pikachu
-  (let ((p (catalog:make-battle-mon "Pikachu" 5 "Thunder Shock" "Growl")))
+  (let ((p (catalog:make-battle-mon (kb) "Pikachu" 5 "Thunder Shock" "Growl")))
     (fiveam:is (string= "Pikachu" (getf p :name)))
     (fiveam:is (> (getf p :hp) 0))
     (fiveam:is (= 2 (length (getf p :moves))))))
@@ -209,21 +209,60 @@
 ;;;; ─── Catalog: gym parties ───────────────────────────────────────────────────
 
 (fiveam:test brock-party-2
-  (fiveam:is (= 2 (length (catalog:brock-party)))))
+  (fiveam:is (= 2 (length (catalog:brock-party (kb))))))
 
 (fiveam:test misty-party-2
-  (fiveam:is (= 2 (length (catalog:misty-party)))))
+  (fiveam:is (= 2 (length (catalog:misty-party (kb))))))
 
 (fiveam:test lt-surge-has-raichu
-  (let ((p (catalog:lt-surge-party)))
+  (let ((p (catalog:lt-surge-party (kb))))
     (fiveam:is (= 1 (length p)))
     (fiveam:is (string= "Raichu" (getf (first p) :name)))))
 
 (fiveam:test erika-party-3
-  (fiveam:is (= 3 (length (catalog:erika-party)))))
+  (fiveam:is (= 3 (length (catalog:erika-party (kb))))))
 
 (fiveam:test giovanni-party-5
-  (fiveam:is (= 5 (length (catalog:giovanni-party)))))
+  (fiveam:is (= 5 (length (catalog:giovanni-party (kb))))))
+
+(fiveam:test lorelei-party-5
+  (fiveam:is (= 5 (length (catalog:lorelei-party (kb))))))
+
+(fiveam:test lance-party-5
+  (fiveam:is (= 5 (length (catalog:lance-party (kb))))))
+
+(fiveam:test gary-party-6
+  "Champion Gary has 6 Pokémon."
+  (fiveam:is (= 6 (length (catalog:gary-party (kb))))))
+
+(fiveam:test gary-party-ends-blastoise
+  "Gary's ace is Blastoise (Squirtle start variant)."
+  (let ((p (catalog:gary-party (kb))))
+    (fiveam:is (string= "Blastoise"
+                        (getf (car (last p)) :name)))))
+
+(fiveam:test simulate-battle-blastoise-beats-charizard
+  "Water beats Fire — Blastoise should win the smoke test."
+  (let* ((kb   (kb))
+         (c-pl (catalog:make-battle-mon kb "Charizard" 36
+                 "Flamethrower" "Fire Blast" "Slash" "Hyper Beam"))
+         (b-pl (catalog:make-battle-mon kb "Blastoise" 36
+                 "Surf" "Hydro Pump" "Withdraw" "Body Slam"))
+         (p1   (pokemon-sim/glue:plist->pokemon c-pl))
+         (p2   (pokemon-sim/glue:plist->pokemon b-pl))
+         (m1   (pokemon-sim/glue:catalog-move->coalton
+                 (catalog:find-move kb "Flamethrower")))
+         (m2   (pokemon-sim/glue:catalog-move->coalton
+                 (catalog:find-move kb "Surf")))
+         (res  (pokemon-sim:simulate-battle kb p1 m1 p2 m2 20)))
+    ;; Extract winner name before any fiveam assertion to avoid scope issues
+    (let ((winner-name
+            (pokemon-sim/glue:match-outcome res
+              :winner w
+              :victor  (pokemon-sim:pokemon-name w)
+              :draw    nil
+              :ongoing nil)))
+      (fiveam:is (string= "Blastoise" winner-name)))))
 
 ;;;; ─── Runner ─────────────────────────────────────────────────────────────────
 

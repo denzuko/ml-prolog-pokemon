@@ -1,758 +1,669 @@
-;;; catalog.lisp — Gen I Yellow Pokédex, move, item, and badge-battle data
-;;; All data is pure CL (no Coalton dependency).
+;;;; catalog.lisp — Gen-I Yellow Pokédex as Prolog facts
+;;;;
+;;;; All data lives in the shared prolog-db returned by pokemon-logic:make-pokemon-kb.
+;;;; This file defines:
+;;;;   assert-catalog-facts — asserts pokemon/move/item/gym-party facts into a db
+;;;;   Query API             — find-pokemon, find-move, find-item, make-battle-mon,
+;;;;                           gym party accessors, *gen1-yellow-roster* compat list
+;;;;
+;;;; Prolog fact schemas:
+;;;;   (pokemon   name num type1 type2 base-hp base-atk base-def base-spc base-spd)
+;;;;   (learnset  name level move-name)
+;;;;   (move      name type category power accuracy pp effect)
+;;;;   (item      name item-symbol description)
+;;;;   (gym-party gym  slot species-name level move1 move2 move3 move4)
+
 (named-readtables:in-readtable :standard)
 
 (in-package #:pokemon-catalog)
 
-;;;; ── Pokémon record ────────────────────────────────────────────────────────
+;;;; ── Fact assertion ──────────────────────────────────────────────────────────
 
-(defstruct (pkmn-species (:conc-name species-))
-  name        ; string
-  number      ; dex #
-  type1       ; keyword symbol
-  type2       ; keyword symbol or nil
-  base-hp
-  base-atk
-  base-def
-  base-spc
-  base-spd
-  learnset)   ; list of (level . move-name-string)
+(defun assert-catalog-facts (db)
+  "Assert all Gen-I Yellow catalog facts into DB (a pokemon-logic::prolog-db)."
+  (flet ((pf (&rest fact)
+           (pokemon-logic::db-assert db fact)))
 
-(defstruct (pkmn-move (:conc-name move-))
-  name
-  type        ; keyword symbol
-  category    ; :physical or :special (Gen I split = stat-based, not type-based)
-  power       ; 0 for status
-  accuracy    ; 0-100
-  pp
-  effect)     ; keyword or nil
+    ;; ── Moves ─────────────────────────────────────────────────────────────────
+    ;; (move name type category power accuracy pp effect)
+    (pf 'move "Tackle"        :normal   :physical  35  95 35 nil)
+    (pf 'move "Scratch"       :normal   :physical  40 100 35 nil)
+    (pf 'move "Pound"         :normal   :physical  40 100 35 nil)
+    (pf 'move "Quick Attack"  :normal   :physical  40 100 30 :always-first)
+    (pf 'move "Body Slam"     :normal   :physical  85 100 15 :paralysis-30)
+    (pf 'move "Hyper Beam"    :normal   :physical 150  90  5 :recharge)
+    (pf 'move "Growl"         :normal   :physical   0 100 40 :lower-atk)
+    (pf 'move "Tail Whip"     :normal   :physical   0 100 30 :lower-def)
+    (pf 'move "Leer"          :normal   :physical   0 100 30 :lower-def)
+    (pf 'move "Sing"          :normal   :physical   0  55 15 :sleep)
+    (pf 'move "Slam"          :normal   :physical  80  75 20 nil)
+    (pf 'move "Slash"         :normal   :physical  70 100 20 :high-crit)
+    (pf 'move "Swords Dance"  :normal   :physical   0 100 30 :raise-atk-2)
+    (pf 'move "Harden"        :normal   :physical   0 100 30 :raise-def)
+    (pf 'move "Defense Curl"  :normal   :physical   0 100 40 :raise-def)
+    (pf 'move "Bind"          :normal   :physical  15  75 20 :trapping)
+    (pf 'move "Bide"          :normal   :physical   0 100 10 :bide)
+    (pf 'move "Screech"       :normal   :physical   0  85 40 :lower-def-2)
+    (pf 'move "Disable"       :normal   :physical   0  55 20 :disable)
+    (pf 'move "Ember"         :fire     :special   40 100 25 :burn-10)
+    (pf 'move "Flamethrower"  :fire     :special   95 100 15 :burn-10)
+    (pf 'move "Fire Blast"    :fire     :special  120  85  5 :burn-30)
+    (pf 'move "Water Gun"     :water    :special   40 100 25 nil)
+    (pf 'move "Surf"          :water    :special   95 100 15 nil)
+    (pf 'move "Hydro Pump"    :water    :special  120  80  5 nil)
+    (pf 'move "Bubble"        :water    :special   20 100 30 :lower-spd-10)
+    (pf 'move "Bubblebeam"    :water    :special   65 100 20 :lower-spd-33)
+    (pf 'move "Withdraw"      :water    :physical   0 100 40 :raise-def)
+    (pf 'move "Vine Whip"     :grass    :special   35 100 10 nil)
+    (pf 'move "Razor Leaf"    :grass    :special   55  95 25 :high-crit)
+    (pf 'move "Solar Beam"    :grass    :special  120 100 10 :charge-turn)
+    (pf 'move "Petal Dance"   :grass    :special   70 100 20 :confuse-self)
+    (pf 'move "Thunder Shock" :electric :special   40 100 30 :paralysis-10)
+    (pf 'move "Thunderbolt"   :electric :special   95 100 15 :paralysis-10)
+    (pf 'move "Thunder"       :electric :special  120  70 10 :paralysis-10)
+    (pf 'move "Thunder Wave"  :electric :physical   0 100 20 :paralysis)
+    (pf 'move "Ice Beam"      :ice      :special   95 100 10 :freeze-10)
+    (pf 'move "Blizzard"      :ice      :special  120  90  5 :freeze-10)
+    (pf 'move "Karate Chop"   :fighting :physical  50 100 25 :high-crit)
+    (pf 'move "Low Kick"      :fighting :physical  50  90 20 :flinch-30)
+    (pf 'move "Seismic Toss"  :fighting :physical   0 100 20 :level-damage)
+    (pf 'move "Submission"    :fighting :physical  80  80 25 :recoil-25)
+    (pf 'move "Poison Sting"  :poison   :physical  15 100 35 :poison-20)
+    (pf 'move "Acid"          :poison   :special   40 100 30 :lower-def-33)
+    (pf 'move "Toxic"         :poison   :physical   0  85 10 :bad-poison)
+    (pf 'move "Earthquake"    :ground   :physical 100 100 10 nil)
+    (pf 'move "Dig"           :ground   :physical 100 100 10 :charge-turn)
+    (pf 'move "Gust"          :flying   :special   40 100 35 nil)
+    (pf 'move "Wing Attack"   :flying   :physical  35 100 35 nil)
+    (pf 'move "Agility"       :psychic  :physical   0 100 30 :raise-spd-2)
+    (pf 'move "Confusion"     :psychic  :special   50 100 25 :confuse-10)
+    (pf 'move "Psybeam"       :psychic  :special   65 100 20 :confuse-10)
+    (pf 'move "Psychic"       :psychic  :special   90 100 10 :lower-spc-33)
+    (pf 'move "Recover"       :psychic  :physical   0 100 20 :restore-half)
+    (pf 'move "Barrier"       :psychic  :physical   0 100 30 :raise-def-2)
+    (pf 'move "Amnesia"       :psychic  :physical   0 100 20 :raise-spc-2)
+    (pf 'move "String Shot"   :bug      :physical   0  95 40 :lower-spd)
+    (pf 'move "Leech Life"    :bug      :physical  20 100 15 :drain-half)
+    (pf 'move "Pin Missile"   :bug      :physical  14  85 20 :multi-hit)
+    (pf 'move "Rock Throw"    :rock     :physical  50  65 15 nil)
+    (pf 'move "Rock Slide"    :rock     :physical  75  90 10 :flinch-30)
+    (pf 'move "Lick"          :ghost    :physical  20 100 30 :paralysis-30)
+    (pf 'move "Night Shade"   :ghost    :special    0 100 15 :level-damage)
+    (pf 'move "Confuse Ray"   :ghost    :physical   0 100 10 :confuse)
+    (pf 'move "Wrap"          :normal   :physical  15  85 20 :trapping)
+    (pf 'move "Peck"          :flying   :physical  35 100 35 nil)
+    (pf 'move "Fury Attack"   :normal   :physical  15  85 20 :multi-hit)
+    (pf 'move "Stomp"         :normal   :physical  65 100 20 :flinch-30)
+    (pf 'move "Horn Attack"   :normal   :physical  65 100 25 nil)
+    (pf 'move "Horn Drill"    :normal   :physical   0  30  5 :ohko)
+    (pf 'move "Double Kick"   :fighting :physical  30 100 30 :two-hit)
+    (pf 'move "Meditate"      :psychic  :physical   0 100 40 :raise-atk)
+    (pf 'move "Supersonic"    :normal   :physical   0  55 20 :confuse)
+    (pf 'move "Spore"         :grass    :physical   0 100 15 :sleep)
+    (pf 'move "Stun Spore"    :grass    :physical   0  75 30 :paralysis)
+    (pf 'move "Poison Powder" :poison   :physical   0  75 35 :poison)
+    (pf 'move "Absorb"        :grass    :special   20 100 25 :drain-half)
+    (pf 'move "Bone Club"     :ground   :physical  65  85 20 :flinch-10)
+    (pf 'move "Bonemerang"    :ground   :physical  50  90 10 :two-hit)
+    (pf 'move "Teleport"      :psychic  :physical   0 100 20 :escape)
+    (pf 'move "Comet Punch"   :normal   :physical  18  85 15 :multi-hit)
+    (pf 'move "Headbutt"      :normal   :physical  70 100 15 :flinch-30)
+    (pf 'move "Vicegrip"      :normal   :physical  55 100 30 nil)
+    (pf 'move "Tri Attack"    :normal   :special   80 100 10 :tri-effect)
+    (pf 'move "Super Fang"    :normal   :physical   0  90 10 :half-hp)
+    (pf 'move "Smokescreen"   :normal   :physical   0 100 20 :lower-acc)
+    (pf 'move "Transform"     :normal   :physical   0 100 10 :transform)
+    (pf 'move "Splash"        :normal   :physical   0 100 40 nil)
+    (pf 'move "Sharpen"       :normal   :physical   0 100 30 :raise-atk)
+    (pf 'move "Focus Energy"  :normal   :physical   0 100 30 :crit-up)
 
-(defstruct (pkmn-item (:conc-name item-))
-  name
-  symbol      ; keyword used by logic engine
-  description)
+    ;; ── Items ──────────────────────────────────────────────────────────────────
+    ;; (item name symbol description)
+    (pf 'item "Potion"       'potion       "Restores 20 HP")
+    (pf 'item "Super Potion" 'super-potion "Restores 50 HP")
+    (pf 'item "Hyper Potion" 'hyper-potion "Restores 200 HP")
+    (pf 'item "Max Potion"   'max-potion   "Fully restores HP")
+    (pf 'item "Full Restore" 'full-restore "Fully restores HP and cures status")
+    (pf 'item "Revive"       'revive       "Revives to half HP")
+    (pf 'item "Max Revive"   'max-revive   "Revives to full HP")
+    (pf 'item "Antidote"     'antidote     "Cures poison")
+    (pf 'item "Burn Heal"    'burn-heal    "Cures burn")
+    (pf 'item "Ice Heal"     'ice-heal     "Cures freeze")
+    (pf 'item "Awakening"    'awakening    "Cures sleep")
+    (pf 'item "Parlyz Heal"  'parlyz-heal  "Cures paralysis")
+    (pf 'item "Full Heal"    'full-heal    "Cures any status")
+    (pf 'item "X Attack"     'x-attack     "Raises Attack 1 stage")
+    (pf 'item "X Defense"    'x-defense    "Raises Defense 1 stage")
+    (pf 'item "X Speed"      'x-speed      "Raises Speed 1 stage")
+    (pf 'item "X Special"    'x-special    "Raises Special 1 stage")
+    (pf 'item "Dire Hit"     'dire-hit     "Raises critical-hit ratio")
+    (pf 'item "Guard Spec."  'guard-spec   "Prevents stat reduction")
 
-;;;; ── Move table (curated Gen I Yellow set) ─────────────────────────────────
+    ;; ── Pokémon — (pokemon name num type1 type2 hp atk def spc spd) ───────────
+    ;; type2 = :none when single-typed
+    (dolist (r '(
+      ("Bulbasaur"  1  :grass    :poison  45  49  49  65  45
+       ("Tackle" "Growl" "Vine Whip" "Razor Leaf"))
+      ("Ivysaur"   2  :grass    :poison  60  62  63  80  60
+       ("Vine Whip" "Razor Leaf" "Toxic" "Solar Beam"))
+      ("Venusaur"  3  :grass    :poison  80  82  83 100  80
+       ("Vine Whip" "Solar Beam" "Razor Leaf" "Hyper Beam"))
+      ("Charmander" 4 :fire     :none    39  52  43  50  65
+       ("Scratch" "Growl" "Ember" "Slash"))
+      ("Charmeleon" 5 :fire     :none    58  64  58  65  80
+       ("Scratch" "Ember" "Flamethrower" "Fire Blast"))
+      ("Charizard"  6 :fire     :flying  78  84  78  85 100
+       ("Ember" "Flamethrower" "Fire Blast" "Hyper Beam"))
+      ("Squirtle"   7 :water    :none    44  48  65  50  43
+       ("Tackle" "Tail Whip" "Bubble" "Water Gun"))
+      ("Wartortle"  8 :water    :none    59  63  80  65  58
+       ("Water Gun" "Withdraw" "Surf" "Hydro Pump"))
+      ("Blastoise"  9 :water    :none    79  83 100  85  78
+       ("Water Gun" "Surf" "Hydro Pump" "Hyper Beam"))
+      ("Caterpie"  10 :bug      :none    45  30  35  20  45
+       ("Tackle" "String Shot"))
+      ("Metapod"   11 :bug      :none    50  20  55  25  30
+       ("Harden"))
+      ("Butterfree" 12 :bug     :flying  60  45  50  80  70
+       ("Confusion" "Psybeam" "Stun Spore" "Psychic"))
+      ("Weedle"    13 :bug      :poison  40  35  30  20  50
+       ("Poison Sting" "String Shot"))
+      ("Kakuna"    14 :bug      :poison  45  25  50  25  35
+       ("Harden"))
+      ("Beedrill"  15 :bug      :poison  65  80  40  45  75
+       ("Poison Sting" "Toxic" "Pin Missile" "Agility"))
+      ("Pidgey"    16 :normal   :flying  40  45  40  35  56
+       ("Gust" "Tackle" "Wing Attack" "Quick Attack"))
+      ("Pidgeotto" 17 :normal   :flying  63  60  55  50  71
+       ("Gust" "Wing Attack" "Agility" "Hyper Beam"))
+      ("Pidgeot"   18 :normal   :flying  83  80  75  70  91
+       ("Wing Attack" "Agility" "Hyper Beam" "Gust"))
+      ("Rattata"   19 :normal   :none    30  56  35  25  72
+       ("Tackle" "Tail Whip" "Quick Attack" "Body Slam"))
+      ("Raticate"  20 :normal   :none    55  81  60  50  97
+       ("Quick Attack" "Body Slam" "Hyper Beam" "Super Fang"))
+      ("Spearow"   21 :normal   :flying  40  60  30  31  70
+       ("Peck" "Growl" "Leer" "Fury Attack"))
+      ("Fearow"    22 :normal   :flying  65  90  65  61 100
+       ("Peck" "Leer" "Fury Attack" "Hyper Beam"))
+      ("Ekans"     23 :poison   :none    35  60  44  40  55
+       ("Wrap" "Leer" "Poison Sting" "Acid"))
+      ("Arbok"     24 :poison   :none    60  85  69  65  80
+       ("Poison Sting" "Acid" "Toxic" "Hyper Beam"))
+      ("Pikachu"   25 :electric :none    35  55  30  50  90
+       ("Thunder Shock" "Growl" "Thunderbolt" "Thunder Wave"))
+      ("Raichu"    26 :electric :none    60  90  55  90 110
+       ("Thunderbolt" "Thunder Wave" "Quick Attack" "Thunder"))
+      ("Sandshrew" 27 :ground   :none    50  75  85  30  40
+       ("Scratch" "Sand Attack" "Dig" "Earthquake"))
+      ("Sandslash" 28 :ground   :none    75 100 110  55  65
+       ("Scratch" "Dig" "Earthquake" "Slash"))
+      ("Nidoran-F" 29 :poison   :none    55  47  52  40  41
+       ("Growl" "Tackle" "Poison Sting" "Body Slam"))
+      ("Nidorina"  30 :poison   :none    70  62  67  55  56
+       ("Tackle" "Body Slam" "Toxic" "Blizzard"))
+      ("Nidoqueen" 31 :poison   :ground  90  82  87  75  76
+       ("Tackle" "Earthquake" "Body Slam" "Hyper Beam"))
+      ("Nidoran-M" 32 :poison   :none    46  57  40  40  50
+       ("Leer" "Tackle" "Poison Sting" "Focus Energy"))
+      ("Nidorino"  33 :poison   :none    61  72  57  55  65
+       ("Tackle" "Focus Energy" "Toxic" "Blizzard"))
+      ("Nidoking"  34 :poison   :ground  81  92  77  75  85
+       ("Tackle" "Earthquake" "Toxic" "Hyper Beam"))
+      ("Clefairy"  35 :normal   :none    70  45  48  60  35
+       ("Pound" "Growl" "Sing" "Body Slam"))
+      ("Clefable"  36 :normal   :none    95  70  73  85  60
+       ("Pound" "Sing" "Body Slam" "Hyper Beam"))
+      ("Vulpix"    37 :fire     :none    38  41  40  65  65
+       ("Ember" "Quick Attack" "Flamethrower" "Fire Blast"))
+      ("Ninetales" 38 :fire     :none    73  76  75 100 100
+       ("Ember" "Quick Attack" "Flamethrower" "Fire Blast"))
+      ("Jigglypuff" 39 :normal  :none   115  45  20  25  20
+       ("Pound" "Sing" "Body Slam" "Slam"))
+      ("Wigglytuff" 40 :normal  :none   140  70  45  50  45
+       ("Pound" "Sing" "Body Slam" "Hyper Beam"))
+      ("Zubat"     41 :poison   :flying  40  45  35  40  55
+       ("Leech Life" "Supersonic" "Wing Attack" "Toxic"))
+      ("Golbat"    42 :poison   :flying  75  80  70  75  90
+       ("Leech Life" "Wing Attack" "Toxic" "Hyper Beam"))
+      ("Oddish"    43 :grass    :poison  45  50  55  75  30
+       ("Absorb" "Acid" "Poison Powder" "Solar Beam"))
+      ("Gloom"     44 :grass    :poison  60  65  70  85  40
+       ("Acid" "Solar Beam" "Toxic" "Petal Dance"))
+      ("Vileplume" 45 :grass    :poison  75  80  85 100  50
+       ("Acid" "Solar Beam" "Toxic" "Petal Dance"))
+      ("Paras"     46 :bug      :grass   35  70  55  55  25
+       ("Scratch" "Stun Spore" "Acid" "Slash"))
+      ("Parasect"  47 :bug      :grass   60  95  80  80  30
+       ("Scratch" "Slash" "Spore" "Leech Life"))
+      ("Venonat"   48 :bug      :poison  60  55  50  40  45
+       ("Tackle" "Disable" "Psybeam" "Psychic"))
+      ("Venomoth"  49 :bug      :poison  70  65  60  90  90
+       ("Psybeam" "Psychic" "Leech Life" "Hyper Beam"))
+      ("Diglett"   50 :ground   :none    10  55  25  45  95
+       ("Scratch" "Growl" "Dig" "Earthquake"))
+      ("Dugtrio"   51 :ground   :none    35  80  50  70 120
+       ("Scratch" "Dig" "Earthquake" "Slash"))
+      ("Meowth"    52 :normal   :none    40  45  35  40  90
+       ("Scratch" "Growl" "Bite" "Screech"))
+      ("Persian"   53 :normal   :none    65  70  60  65 115
+       ("Scratch" "Growl" "Slash" "Hyper Beam"))
+      ("Psyduck"   54 :water    :none    50  52  48  50  55
+       ("Scratch" "Tail Whip" "Psybeam" "Confusion"))
+      ("Golduck"   55 :water    :none    80  82  78  80  85
+       ("Scratch" "Psybeam" "Surf" "Hyper Beam"))
+      ("Mankey"    56 :fighting :none    40  80  35  35  70
+       ("Scratch" "Leer" "Karate Chop" "Seismic Toss"))
+      ("Primeape"  57 :fighting :none    65 105  60  60  95
+       ("Karate Chop" "Seismic Toss" "Low Kick" "Hyper Beam"))
+      ("Growlithe" 58 :fire     :none    55  70  45  50  60
+       ("Ember" "Bite" "Flamethrower" "Fire Blast"))
+      ("Arcanine"  59 :fire     :none    90 110  80  80  95
+       ("Ember" "Flamethrower" "Fire Blast" "Hyper Beam"))
+      ("Poliwag"   60 :water    :none    40  50  40  40  90
+       ("Bubble" "Bubblebeam" "Surf" "Body Slam"))
+      ("Poliwhirl" 61 :water    :none    65  65  65  50  90
+       ("Bubblebeam" "Body Slam" "Surf" "Amnesia"))
+      ("Poliwrath" 62 :water    :fighting 90 85  95  70  70
+       ("Body Slam" "Surf" "Seismic Toss" "Hyper Beam"))
+      ("Abra"      63 :psychic  :none    25  20  15 105  90
+       ("Teleport"))
+      ("Kadabra"   64 :psychic  :none    40  35  30 120 105
+       ("Confusion" "Psybeam" "Recover" "Psychic"))
+      ("Alakazam"  65 :psychic  :none    55  50  45 135 120
+       ("Confusion" "Psychic" "Recover" "Hyper Beam"))
+      ("Machop"    66 :fighting :none    70  80  50  35  35
+       ("Karate Chop" "Low Kick" "Seismic Toss" "Submission"))
+      ("Machoke"   67 :fighting :none    80 100  70  50  45
+       ("Karate Chop" "Seismic Toss" "Submission" "Hyper Beam"))
+      ("Machamp"   68 :fighting :none    90 130  80  65  55
+       ("Karate Chop" "Seismic Toss" "Submission" "Hyper Beam"))
+      ("Bellsprout" 69 :grass   :poison  50  75  35  70  40
+       ("Vine Whip" "Acid" "Razor Leaf" "Solar Beam"))
+      ("Weepinbell" 70 :grass   :poison  65  90  50  85  55
+       ("Vine Whip" "Solar Beam" "Toxic" "Razor Leaf"))
+      ("Victreebel" 71 :grass   :poison  80 105  65 100  70
+       ("Vine Whip" "Solar Beam" "Razor Leaf" "Hyper Beam"))
+      ("Tentacool" 72 :water    :poison  40  40  35 100  70
+       ("Acid" "Poison Sting" "Bubblebeam" "Surf"))
+      ("Tentacruel" 73 :water   :poison  80  70  65 120 100
+       ("Acid" "Bubblebeam" "Surf" "Hyper Beam"))
+      ("Geodude"   74 :rock     :ground  40  80 100  30  20
+       ("Tackle" "Defense Curl" "Rock Throw" "Earthquake"))
+      ("Graveler"  75 :rock     :ground  55  95 115  45  35
+       ("Tackle" "Rock Throw" "Earthquake" "Rock Slide"))
+      ("Golem"     76 :rock     :ground  80 110 130  55  45
+       ("Tackle" "Earthquake" "Rock Slide" "Hyper Beam"))
+      ("Ponyta"    77 :fire     :none    50  85  55  65  90
+       ("Ember" "Flamethrower" "Fire Blast" "Stomp"))
+      ("Rapidash"  78 :fire     :none    65 100  70  80 105
+       ("Ember" "Flamethrower" "Fire Blast" "Hyper Beam"))
+      ("Slowpoke"  79 :water    :psychic 90  65  65  40  15
+       ("Tackle" "Confusion" "Water Gun" "Psychic"))
+      ("Slowbro"   80 :water    :psychic 95  75 110  80  30
+       ("Confusion" "Psychic" "Surf" "Hyper Beam"))
+      ("Magnemite" 81 :electric :none    25  35  70  95  45
+       ("Thunder Shock" "Thunderbolt" "Thunder Wave" "Thunder"))
+      ("Magneton"  82 :electric :none    50  60  95 120  70
+       ("Thunder Shock" "Thunderbolt" "Thunder" "Hyper Beam"))
+      ("Farfetch'd" 83 :normal  :flying  52  65  55  58  60
+       ("Peck" "Leer" "Gust" "Slash"))
+      ("Doduo"     84 :normal   :flying  35  85  45  35  75
+       ("Peck" "Growl" "Fury Attack" "Hyper Beam"))
+      ("Dodrio"    85 :normal   :flying  60 110  70  60 100
+       ("Peck" "Fury Attack" "Hyper Beam" "Agility"))
+      ("Seel"      86 :water    :none    65  45  55  70  45
+       ("Headbutt" "Ice Beam" "Blizzard" "Surf"))
+      ("Dewgong"   87 :water    :ice     90  70  80  95  70
+       ("Headbutt" "Ice Beam" "Blizzard" "Surf"))
+      ("Grimer"    88 :poison   :none    80  80  50  40  25
+       ("Pound" "Disable" "Acid" "Toxic"))
+      ("Muk"       89 :poison   :none   105 105  75  65  50
+       ("Pound" "Acid" "Toxic" "Hyper Beam"))
+      ("Shellder"  90 :water    :none    30  65 100  45  40
+       ("Tackle" "Withdraw" "Ice Beam" "Blizzard"))
+      ("Cloyster"  91 :water    :ice     50  95 180  85  70
+       ("Surf" "Ice Beam" "Blizzard" "Hyper Beam"))
+      ("Gastly"    92 :ghost    :poison  30  35  30 100  80
+       ("Lick" "Night Shade" "Confuse Ray" "Psychic"))
+      ("Haunter"   93 :ghost    :poison  45  50  45 115  95
+       ("Lick" "Night Shade" "Confuse Ray" "Psychic"))
+      ("Gengar"    94 :ghost    :poison  60  65  60 130 110
+       ("Lick" "Night Shade" "Confuse Ray" "Hyper Beam"))
+      ("Onix"      95 :rock     :ground  35  45 160  30  70
+       ("Tackle" "Screech" "Rock Throw" "Earthquake"))
+      ("Drowzee"   96 :psychic  :none    60  48  45  90  42
+       ("Pound" "Disable" "Confusion" "Psychic"))
+      ("Hypno"     97 :psychic  :none    85  73  70 115  67
+       ("Confusion" "Psychic" "Disable" "Hyper Beam"))
+      ("Krabby"    98 :water    :none    30 105  90  25  50
+       ("Bubble" "Vicegrip" "Surf" "Slash"))
+      ("Kingler"   99 :water    :none    55 130 115  50  75
+       ("Bubble" "Surf" "Slash" "Hyper Beam"))
+      ("Voltorb"  100 :electric :none    40  30  50  55 100
+       ("Tackle" "Thunderbolt" "Thunder Wave" "Thunder"))
+      ("Electrode" 101 :electric :none   60  50  70  80 140
+       ("Thunderbolt" "Thunder Wave" "Thunder" "Hyper Beam"))
+      ("Exeggcute" 102 :grass   :psychic 60  40  80  60  40
+       ("Absorb" "Confusion" "Solar Beam" "Psychic"))
+      ("Exeggutor" 103 :grass   :psychic 95  95  85 125  55
+       ("Confusion" "Solar Beam" "Psychic" "Hyper Beam"))
+      ("Cubone"   104 :ground   :none    50  50  95  40  35
+       ("Growl" "Bone Club" "Leer" "Earthquake"))
+      ("Marowak"  105 :ground   :none    60  80 110  50  45
+       ("Bone Club" "Earthquake" "Bonemerang" "Hyper Beam"))
+      ("Hitmonlee" 106 :fighting :none   50 120  53  35  87
+       ("Double Kick" "Meditate" "Low Kick" "Seismic Toss"))
+      ("Hitmonchan" 107 :fighting :none  50 105  79  35  76
+       ("Comet Punch" "Karate Chop" "Seismic Toss" "Hyper Beam"))
+      ("Lickitung" 108 :normal  :none    90  55  75  60  30
+       ("Pound" "Lick" "Body Slam" "Slam"))
+      ("Koffing"  109 :poison   :none    40  65  95  60  35
+       ("Pound" "Tackle" "Acid" "Toxic"))
+      ("Weezing"  110 :poison   :none    65  90 120  85  60
+       ("Pound" "Acid" "Toxic" "Hyper Beam"))
+      ("Rhyhorn"  111 :ground   :rock    80  85  95  30  25
+       ("Horn Attack" "Leer" "Earthquake" "Rock Slide"))
+      ("Rhydon"   112 :ground   :rock   105 130 120  45  40
+       ("Horn Attack" "Earthquake" "Rock Slide" "Hyper Beam"))
+      ("Chansey"  113 :normal   :none   250   5   5 105  50
+       ("Pound" "Growl" "Sing" "Egg Bomb"))
+      ("Tangela"  114 :grass    :none    65  55 115 100  60
+       ("Bind" "Vine Whip" "Razor Leaf" "Solar Beam"))
+      ("Kangaskhan" 115 :normal :none   105  95  80  40  90
+       ("Pound" "Growl" "Body Slam" "Hyper Beam"))
+      ("Horsea"   116 :water    :none    30  40  70  70  60
+       ("Bubble" "Bubblebeam" "Surf" "Hydro Pump"))
+      ("Seadra"   117 :water    :none    55  65  95  95  85
+       ("Bubblebeam" "Surf" "Hydro Pump" "Hyper Beam"))
+      ("Goldeen"  118 :water    :none    45  67  60  50  63
+       ("Peck" "Tail Whip" "Surf" "Horn Drill"))
+      ("Seaking"  119 :water    :none    80  92  65  80  68
+       ("Peck" "Surf" "Hyper Beam" "Horn Drill"))
+      ("Staryu"   120 :water    :none    30  45  55  70  85
+       ("Tackle" "Water Gun" "Bubblebeam" "Surf"))
+      ("Starmie"  121 :water    :psychic 60  75  85 100 115
+       ("Water Gun" "Bubblebeam" "Surf" "Psychic"))
+      ("Mr. Mime" 122 :psychic  :none    40  45  65 100  90
+       ("Confusion" "Barrier" "Psybeam" "Psychic"))
+      ("Scyther"  123 :bug      :flying  70 110  80  55 105
+       ("Quick Attack" "Leer" "Wing Attack" "Slash"))
+      ("Jynx"     124 :ice      :psychic 65  50  35  95  95
+       ("Pound" "Sing" "Ice Beam" "Blizzard"))
+      ("Electabuzz" 125 :electric :none  65  83  57  95 105
+       ("Thunder Shock" "Thunderbolt" "Thunder Wave" "Thunder"))
+      ("Magmar"   126 :fire     :none    65  95  57  85  93
+       ("Ember" "Flamethrower" "Fire Blast" "Hyper Beam"))
+      ("Pinsir"   127 :bug      :none    65 125 100  55  85
+       ("Vicegrip" "Bind" "Seismic Toss" "Hyper Beam"))
+      ("Tauros"   128 :normal   :none    75 100  95  70 110
+       ("Tackle" "Leer" "Body Slam" "Hyper Beam"))
+      ("Magikarp" 129 :water    :none    20  10  55  20  80
+       ("Splash" "Tackle"))
+      ("Gyarados" 130 :water    :flying  95 125  79 100  81
+       ("Surf" "Body Slam" "Bite" "Hyper Beam"))
+      ("Lapras"   131 :water    :ice    130  85  80  95  60
+       ("Water Gun" "Ice Beam" "Blizzard" "Surf"))
+      ("Ditto"    132 :normal   :none    48  48  48  48  48
+       ("Transform"))
+      ("Eevee"    133 :normal   :none    55  55  50  65  55
+       ("Tackle" "Tail Whip" "Quick Attack" "Body Slam"))
+      ("Vaporeon" 134 :water    :none   130  65  60 110  65
+       ("Tackle" "Water Gun" "Surf" "Hydro Pump"))
+      ("Jolteon"  135 :electric :none    65  65  60 110 130
+       ("Tackle" "Thunder Shock" "Thunderbolt" "Thunder"))
+      ("Flareon"  136 :fire     :none    65 130  60 110  65
+       ("Tackle" "Ember" "Flamethrower" "Fire Blast"))
+      ("Porygon"  137 :normal   :none    65  60  70  75  40
+       ("Tackle" "Sharpen" "Psybeam" "Tri Attack"))
+      ("Omanyte"  138 :rock     :water   35  40 100  90  35
+       ("Water Gun" "Bubblebeam" "Surf" "Hydro Pump"))
+      ("Omastar"  139 :rock     :water   70  60 125 115  55
+       ("Water Gun" "Surf" "Hydro Pump" "Hyper Beam"))
+      ("Kabuto"   140 :rock     :water   30  80  90  55  55
+       ("Scratch" "Bubblebeam" "Surf" "Hydro Pump"))
+      ("Kabutops" 141 :rock     :water   60 115 105  70  80
+       ("Scratch" "Surf" "Hydro Pump" "Hyper Beam"))
+      ("Aerodactyl" 142 :rock   :flying  80 105  65  60 130
+       ("Wing Attack" "Hyper Beam" "Agility" "Rock Slide"))
+      ("Snorlax"  143 :normal   :none   160 110  65  65  30
+       ("Tackle" "Body Slam" "Hyper Beam" "Amnesia"))
+      ("Articuno" 144 :ice      :flying  90  85 100 125  85
+       ("Ice Beam" "Blizzard" "Hyper Beam" "Agility"))
+      ("Zapdos"   145 :electric :flying  90  90  85 125 100
+       ("Thunderbolt" "Thunder" "Hyper Beam" "Agility"))
+      ("Moltres"  146 :fire     :flying  90 100  90 125  90
+       ("Fire Blast" "Flamethrower" "Hyper Beam" "Agility"))
+      ("Dratini"  147 :dragon   :none    41  64  45  50  50
+       ("Wrap" "Leer" "Thunder Wave" "Slam"))
+      ("Dragonair" 148 :dragon  :none    61  84  65  70  70
+       ("Wrap" "Slam" "Hyper Beam" "Agility"))
+      ("Dragonite" 149 :dragon  :flying  91 134  95 100  80
+       ("Slam" "Hyper Beam" "Agility" "Blizzard"))
+      ("Mewtwo"   150 :psychic  :none   106 110  90 154 130
+       ("Confusion" "Psychic" "Recover" "Hyper Beam"))
+      ("Mew"      151 :psychic  :none   100 100 100 100 100
+       ("Pound" "Psychic" "Hyper Beam" "Blizzard"))))
+      (destructuring-bind (name num type1 type2 hp atk def spc spd moves) r
+        (pf 'pokemon name num type1 type2 hp atk def spc spd)
+        (dolist (mv moves)
+          (pf 'learnset name mv))))
 
-(defparameter *gen1-moves*
-  (list
-   ;; Normal
-   (make-pkmn-move :name "Tackle"       :type :normal   :category :physical :power 35  :accuracy 95 :pp 35)
-   (make-pkmn-move :name "Scratch"      :type :normal   :category :physical :power 40  :accuracy 100 :pp 35)
-   (make-pkmn-move :name "Pound"        :type :normal   :category :physical :power 40  :accuracy 100 :pp 35)
-   (make-pkmn-move :name "Quick Attack" :type :normal   :category :physical :power 40  :accuracy 100 :pp 30 :effect :always-first)
-   (make-pkmn-move :name "Body Slam"    :type :normal   :category :physical :power 85  :accuracy 100 :pp 15 :effect :paralysis-30)
-   (make-pkmn-move :name "Hyper Beam"   :type :normal   :category :physical :power 150 :accuracy 90  :pp 5  :effect :recharge)
-   (make-pkmn-move :name "Growl"        :type :normal   :category :physical :power 0   :accuracy 100 :pp 40 :effect :lower-atk)
-   (make-pkmn-move :name "Tail Whip"    :type :normal   :category :physical :power 0   :accuracy 100 :pp 30 :effect :lower-def)
-   (make-pkmn-move :name "Leer"         :type :normal   :category :physical :power 0   :accuracy 100 :pp 30 :effect :lower-def)
-   (make-pkmn-move :name "Sing"         :type :normal   :category :physical :power 0   :accuracy 55  :pp 15 :effect :sleep)
-   ;; Fire
-   (make-pkmn-move :name "Ember"        :type :fire     :category :special  :power 40  :accuracy 100 :pp 25 :effect :burn-10)
-   (make-pkmn-move :name "Flamethrower" :type :fire     :category :special  :power 95  :accuracy 100 :pp 15 :effect :burn-10)
-   (make-pkmn-move :name "Fire Blast"   :type :fire     :category :special  :power 120 :accuracy 85  :pp 5  :effect :burn-30)
-   ;; Water
-   (make-pkmn-move :name "Water Gun"    :type :water    :category :special  :power 40  :accuracy 100 :pp 25)
-   (make-pkmn-move :name "Surf"         :type :water    :category :special  :power 95  :accuracy 100 :pp 15)
-   (make-pkmn-move :name "Hydro Pump"   :type :water    :category :special  :power 120 :accuracy 80  :pp 5)
-   (make-pkmn-move :name "Bubble"       :type :water    :category :special  :power 20  :accuracy 100 :pp 30 :effect :lower-spd-10)
-   (make-pkmn-move :name "Bubblebeam"   :type :water    :category :special  :power 65  :accuracy 100 :pp 20 :effect :lower-spd-33)
-   ;; Grass
-   (make-pkmn-move :name "Vine Whip"    :type :grass    :category :special  :power 35  :accuracy 100 :pp 10)
-   (make-pkmn-move :name "Razor Leaf"   :type :grass    :category :special  :power 55  :accuracy 95  :pp 25 :effect :high-crit)
-   (make-pkmn-move :name "Solar Beam"   :type :grass    :category :special  :power 120 :accuracy 100 :pp 10 :effect :charge-turn)
-   ;; Electric
-   (make-pkmn-move :name "Thunder Shock":type :electric :category :special  :power 40  :accuracy 100 :pp 30 :effect :paralysis-10)
-   (make-pkmn-move :name "Thunderbolt"  :type :electric :category :special  :power 95  :accuracy 100 :pp 15 :effect :paralysis-10)
-   (make-pkmn-move :name "Thunder"      :type :electric :category :special  :power 120 :accuracy 70  :pp 10 :effect :paralysis-10)
-   (make-pkmn-move :name "Thunder Wave" :type :electric :category :physical :power 0   :accuracy 100 :pp 20 :effect :paralysis)
-   ;; Ice
-   (make-pkmn-move :name "Ice Beam"     :type :ice      :category :special  :power 95  :accuracy 100 :pp 10 :effect :freeze-10)
-   (make-pkmn-move :name "Blizzard"     :type :ice      :category :special  :power 120 :accuracy 90  :pp 5  :effect :freeze-10)
-   ;; Fighting
-   (make-pkmn-move :name "Karate Chop"  :type :fighting :category :physical :power 50  :accuracy 100 :pp 25 :effect :high-crit)
-   (make-pkmn-move :name "Low Kick"     :type :fighting :category :physical :power 50  :accuracy 90  :pp 20 :effect :flinch-30)
-   (make-pkmn-move :name "Seismic Toss" :type :fighting :category :physical :power 0   :accuracy 100 :pp 20 :effect :level-damage)
-   ;; Poison
-   (make-pkmn-move :name "Poison Sting" :type :poison   :category :physical :power 15  :accuracy 100 :pp 35 :effect :poison-20)
-   (make-pkmn-move :name "Acid"         :type :poison   :category :special  :power 40  :accuracy 100 :pp 30 :effect :lower-def-33)
-   (make-pkmn-move :name "Toxic"        :type :poison   :category :physical :power 0   :accuracy 85  :pp 10 :effect :bad-poison)
-   ;; Ground
-   (make-pkmn-move :name "Earthquake"   :type :ground   :category :physical :power 100 :accuracy 100 :pp 10)
-   (make-pkmn-move :name "Dig"          :type :ground   :category :physical :power 100 :accuracy 100 :pp 10 :effect :charge-turn)
-   ;; Flying
-   (make-pkmn-move :name "Gust"         :type :flying   :category :special  :power 40  :accuracy 100 :pp 35)
-   (make-pkmn-move :name "Wing Attack"  :type :flying   :category :physical :power 35  :accuracy 100 :pp 35)
-   ;; Psychic
-   (make-pkmn-move :name "Confusion"    :type :psychic  :category :special  :power 50  :accuracy 100 :pp 25 :effect :confuse-10)
-   (make-pkmn-move :name "Psybeam"      :type :psychic  :category :special  :power 65  :accuracy 100 :pp 20 :effect :confuse-10)
-   (make-pkmn-move :name "Psychic"      :type :psychic  :category :special  :power 90  :accuracy 100 :pp 10 :effect :lower-spc-33)
-   ;; Bug
-   (make-pkmn-move :name "String Shot"  :type :bug      :category :physical :power 0   :accuracy 95  :pp 40 :effect :lower-spd)
-   (make-pkmn-move :name "Leech Life"   :type :bug      :category :physical :power 20  :accuracy 100 :pp 15 :effect :drain-half)
-   ;; Rock
-   (make-pkmn-move :name "Rock Throw"   :type :rock     :category :physical :power 50  :accuracy 65  :pp 15)
-   (make-pkmn-move :name "Rock Slide"   :type :rock     :category :physical :power 75  :accuracy 90  :pp 10 :effect :flinch-30)
-   ;; Ghost
-   (make-pkmn-move :name "Lick"         :type :ghost    :category :physical :power 20  :accuracy 100 :pp 30 :effect :paralysis-30)
-   (make-pkmn-move :name "Night Shade"  :type :ghost    :category :special  :power 0   :accuracy 100 :pp 15 :effect :level-damage)
-   ;; Misc / TMs
-   (make-pkmn-move :name "Swords Dance"     :type :normal   :category :physical :power 0 :accuracy 100 :pp 30 :effect :raise-atk-2)
-   (make-pkmn-move :name "Harden"           :type :normal   :category :physical :power 0 :accuracy 100 :pp 30 :effect :raise-def)
-   (make-pkmn-move :name "Withdraw"         :type :water    :category :physical :power 0 :accuracy 100 :pp 40 :effect :raise-def)
-   (make-pkmn-move :name "Defense Curl"     :type :normal   :category :physical :power 0 :accuracy 100 :pp 40 :effect :raise-def)
-   (make-pkmn-move :name "Bide"             :type :normal   :category :physical :power 0 :accuracy 100 :pp 10 :effect :bide)
-   (make-pkmn-move :name "Bind"             :type :normal   :category :physical :power 15 :accuracy 75  :pp 20 :effect :trapping)
-   (make-pkmn-move :name "Slam"             :type :normal   :category :physical :power 80 :accuracy 75  :pp 20)))
+    ;; ── Gym parties — (gym-party gym slot name level m1 m2 m3 m4) ─────────────
+    ;; slot = 1-based position in party; nil move slots = :none
+    (dolist (party
+      '((:brock
+         (1 "Geodude"   12 "Tackle"       "Defense Curl" "Rock Throw"  :none)
+         (2 "Onix"      14 "Tackle"        "Screech"     "Rock Throw"  "Bind"))
+        (:misty
+         (1 "Staryu"    18 "Tackle"        "Water Gun"   "Bubblebeam"  :none)
+         (2 "Starmie"   21 "Bubblebeam"    "Water Gun"   "Surf"       "Psychic"))
+        (:lt-surge
+         (1 "Raichu"    28 "Thunderbolt"   "Thunder Wave" "Quick Attack" "Body Slam"))
+        (:erika
+         (1 "Victreebel" 29 "Razor Leaf"   "Acid"        "Solar Beam"  "Toxic")
+         (2 "Tangela"    24 "Bind"         "Vine Whip"   "Razor Leaf"  :none)
+         (3 "Vileplume"  29 "Acid"         "Petal Dance" "Solar Beam"  "Toxic"))
+        (:koga
+         (1 "Koffing"   37 "Tackle"        "Acid"        "Toxic"      "Smokescreen")
+         (2 "Muk"       39 "Pound"         "Acid"        "Toxic"      "Body Slam")
+         (3 "Koffing"   37 "Tackle"        "Acid"        "Toxic"      "Smokescreen")
+         (4 "Weezing"   43 "Pound"         "Acid"        "Toxic"      "Hyper Beam"))
+        (:sabrina
+         (1 "Kadabra"   38 "Confusion"     "Psybeam"     "Recover"    "Psychic")
+         (2 "Mr. Mime"  37 "Confusion"     "Psybeam"     "Barrier"    "Psychic")
+         (3 "Venomoth"  38 "Psybeam"       "Psychic"     "Leech Life" :none)
+         (4 "Alakazam"  43 "Confusion"     "Psybeam"     "Recover"    "Psychic"))
+        (:blaine
+         (1 "Growlithe" 42 "Ember"         "Flamethrower" "Bite"      :none)
+         (2 "Ponyta"    40 "Ember"         "Flamethrower" "Fire Blast" :none)
+         (3 "Rapidash"  42 "Ember"         "Flamethrower" "Fire Blast" :none)
+         (4 "Arcanine"  47 "Ember"         "Flamethrower" "Fire Blast" "Hyper Beam"))
+        (:giovanni
+         (1 "Rhyhorn"   45 "Horn Attack"   "Leer"        "Earthquake" "Rock Slide")
+         (2 "Dugtrio"   42 "Scratch"       "Dig"         "Earthquake" :none)
+         (3 "Nidoqueen" 44 "Tackle"        "Earthquake"  "Body Slam"  "Toxic")
+         (4 "Nidoking"  45 "Tackle"        "Earthquake"  "Toxic"      "Hyper Beam")
+         (5 "Rhydon"    50 "Horn Attack"   "Earthquake"  "Rock Slide" "Hyper Beam"))
 
-(defun find-move (name)
-  "Look up a move by name string. Returns nil if not found."
-  (find name *gen1-moves* :key #'move-name :test #'string-equal))
+        ;; ── Elite Four ────────────────────────────────────────────────────────
+        (:lorelei
+         (1 "Dewgong"   54 "Surf"          "Ice Beam"    "Blizzard"   "Body Slam")
+         (2 "Cloyster"  53 "Surf"          "Ice Beam"    "Blizzard"   "Hyper Beam")
+         (3 "Slowbro"   54 "Surf"          "Psychic"     "Ice Beam"   "Amnesia")
+         (4 "Jynx"      56 "Ice Beam"      "Blizzard"    "Psychic"    "Sing")
+         (5 "Lapras"    60 "Surf"          "Ice Beam"    "Blizzard"   "Body Slam"))
+        (:bruno
+         (1 "Onix"      53 "Tackle"        "Screech"     "Rock Throw" "Bind")
+         (2 "Hitmonchan" 55 "Comet Punch"  "Karate Chop" "Seismic Toss" "Hyper Beam")
+         (3 "Hitmonlee" 55 "Double Kick"   "Low Kick"    "Seismic Toss" "Hyper Beam")
+         (4 "Onix"      56 "Tackle"        "Screech"     "Rock Throw" "Earthquake")
+         (5 "Machamp"   58 "Karate Chop"   "Seismic Toss" "Submission" "Hyper Beam"))
+        (:agatha
+         (1 "Gengar"    54 "Night Shade"   "Confuse Ray" "Toxic"      "Hyper Beam")
+         (2 "Haunter"   54 "Night Shade"   "Confuse Ray" "Toxic"      "Lick")
+         (3 "Gengar"    58 "Night Shade"   "Confuse Ray" "Toxic"      "Hyper Beam")
+         (4 "Arbok"     58 "Acid"          "Toxic"       "Wrap"       "Body Slam")
+         (5 "Gengar"    60 "Night Shade"   "Confuse Ray" "Toxic"      "Hyper Beam"))
+        (:lance
+         (1 "Gyarados"  58 "Surf"          "Body Slam"   "Bite"       "Hyper Beam")
+         (2 "Dragonair" 56 "Wrap"          "Slam"        "Agility"    "Hyper Beam")
+         (3 "Dragonair" 56 "Wrap"          "Slam"        "Agility"    "Hyper Beam")
+         (4 "Aerodactyl" 60 "Wing Attack"  "Rock Slide"  "Hyper Beam" "Agility")
+         (5 "Dragonite" 62 "Slam"          "Hyper Beam"  "Blizzard"   "Agility"))
 
-;;;; ── Item table ────────────────────────────────────────────────────────────
+        ;; ── Champion Gary (Squirtle start — hardest variant) ─────────────────
+        (:gary
+         (1 "Pidgeot"   61 "Wing Attack"   "Agility"     "Hyper Beam" "Gust")
+         (2 "Alakazam"  59 "Psychic"       "Recover"     "Psybeam"    "Hyper Beam")
+         (3 "Rhydon"    61 "Earthquake"    "Rock Slide"  "Horn Attack" "Hyper Beam")
+         (4 "Arcanine"  61 "Fire Blast"    "Flamethrower" "Body Slam"  "Hyper Beam")
+         (5 "Exeggutor" 61 "Solar Beam"    "Psychic"     "Hyper Beam" "Egg Bomb")
+         (6 "Blastoise" 65 "Surf"          "Hydro Pump"  "Withdraw"   "Hyper Beam"))
 
-(defparameter *gen1-items*
-  (list
-   (make-pkmn-item :name "Potion"       :symbol 'potion       :description "Restores 20 HP.")
-   (make-pkmn-item :name "Super Potion" :symbol 'super-potion :description "Restores 50 HP.")
-   (make-pkmn-item :name "Hyper Potion" :symbol 'hyper-potion :description "Restores 200 HP.")
-   (make-pkmn-item :name "Max Potion"   :symbol 'max-potion   :description "Fully restores HP.")
-   (make-pkmn-item :name "Full Restore" :symbol 'full-restore :description "Fully restores HP and cures status.")
-   (make-pkmn-item :name "Revive"       :symbol 'revive       :description "Revives fainted Pokémon to half HP.")
-   (make-pkmn-item :name "Max Revive"   :symbol 'max-revive   :description "Revives fainted Pokémon to full HP.")
-   (make-pkmn-item :name "Antidote"     :symbol 'antidote     :description "Cures poison.")
-   (make-pkmn-item :name "Burn Heal"    :symbol 'burn-heal    :description "Cures burn.")
-   (make-pkmn-item :name "Ice Heal"     :symbol 'ice-heal     :description "Cures freeze.")
-   (make-pkmn-item :name "Awakening"    :symbol 'awakening    :description "Cures sleep.")
-   (make-pkmn-item :name "Parlyz Heal"  :symbol 'parlyz-heal  :description "Cures paralysis.")
-   (make-pkmn-item :name "Full Heal"    :symbol 'full-heal    :description "Cures any status condition.")
-   (make-pkmn-item :name "X Attack"     :symbol 'x-attack     :description "Raises Attack 1 stage.")
-   (make-pkmn-item :name "X Defense"    :symbol 'x-defense    :description "Raises Defense 1 stage.")
-   (make-pkmn-item :name "X Speed"      :symbol 'x-speed      :description "Raises Speed 1 stage.")
-   (make-pkmn-item :name "X Special"    :symbol 'x-special    :description "Raises Special 1 stage.")
-   (make-pkmn-item :name "Dire Hit"     :symbol 'dire-hit     :description "Raises critical-hit ratio.")
-   (make-pkmn-item :name "Guard Spec."  :symbol 'guard-spec   :description "Prevents stat reduction.")))
+        ;; ── Route / dungeon rivals ────────────────────────────────────────────
+        ;; Gary Route 22 (pre-Boulder Badge)
+        (:gary-route22-early
+         (1 "Pidgey"    9  "Gust"          "Tackle"      :none        :none)
+         (2 "Squirtle"  9  "Tackle"        "Tail Whip"   :none        :none))
+        ;; Gary SS Anne (mid-game)
+        (:gary-ss-anne
+         (1 "Pidgeotto" 18 "Gust"          "Wing Attack" :none        :none)
+         (2 "Raticate"  19 "Quick Attack"  "Bite"        :none        :none)
+         (3 "Kadabra"   18 "Confusion"     "Psybeam"     :none        :none)
+         (4 "Wartortle" 20 "Water Gun"     "Withdraw"    :none        :none))
+        ;; Gary Silph Co
+        (:gary-silph
+         (1 "Pidgeotto" 37 "Wing Attack"   "Agility"     "Hyper Beam" :none)
+         (2 "Gyarados"  38 "Surf"          "Body Slam"   "Bite"       :none)
+         (3 "Growlithe" 35 "Flamethrower"  "Bite"        :none        :none)
+         (4 "Alakazam"  38 "Psychic"       "Recover"     :none        :none)
+         (5 "Wartortle" 40 "Surf"          "Withdraw"    "Hydro Pump" :none))))
+      (let ((gym (car party)))
+        (dolist (slot (cdr party))
+          (apply #'pf 'gym-party gym slot))))
 
-(defun find-item (name-or-sym)
-  "Look up an item by name string or keyword symbol."
-  (or (find name-or-sym *gen1-items* :key #'item-name   :test #'string-equal)
-      (find name-or-sym *gen1-items* :key #'item-symbol :test #'eq)))
+    db))
 
-;;;; ── Gen I Yellow Pokédex (complete 151) ───────────────────────────────────
-;;; Format: (number name type1 type2 hp atk def spc spd)
-;;; Moveset is abbreviated to the 4 most representative/level-up moves.
+;;;; ── HP formula ─────────────────────────────────────────────────────────────
 
-(defparameter *gen1-yellow-roster*
-  ;; ── Starters ──────────────────────────────────────────────────────────────
-  (list
-   ;; Pikachu — Yellow's special starter
-   (make-pkmn-species :name "Pikachu"   :number 25  :type1 :electric :type2 nil
-                      :base-hp 35 :base-atk 55 :base-def 30 :base-spc 50 :base-spd 90
-                      :learnset '((1 . "Thunder Shock")(1 . "Growl")(9 . "Thunderbolt")
-                                  (26 . "Quick Attack")(33 . "Thunder Wave")(43 . "Thunder")))
-   (make-pkmn-species :name "Raichu"    :number 26  :type1 :electric :type2 nil
-                      :base-hp 60 :base-atk 90 :base-def 55 :base-spc 90 :base-spd 110
-                      :learnset '((1 . "Thunderbolt")(1 . "Thunder Wave")(1 . "Quick Attack")(1 . "Thunder")))
-   (make-pkmn-species :name "Bulbasaur" :number 1   :type1 :grass :type2 :poison
-                      :base-hp 45 :base-atk 49 :base-def 49 :base-spc 65 :base-spd 45
-                      :learnset '((1 . "Tackle")(1 . "Growl")(7 . "Vine Whip")(22 . "Razor Leaf")))
-   (make-pkmn-species :name "Ivysaur"   :number 2   :type1 :grass :type2 :poison
-                      :base-hp 60 :base-atk 62 :base-def 63 :base-spc 80 :base-spd 60
-                      :learnset '((1 . "Vine Whip")(22 . "Razor Leaf")(30 . "Toxic")(32 . "Solar Beam")))
-   (make-pkmn-species :name "Venusaur"  :number 3   :type1 :grass :type2 :poison
-                      :base-hp 80 :base-atk 82 :base-def 83 :base-spc 100 :base-spd 80
-                      :learnset '((1 . "Vine Whip")(32 . "Solar Beam")(43 . "Razor Leaf")(55 . "Hyper Beam")))
-   (make-pkmn-species :name "Charmander":number 4   :type1 :fire  :type2 nil
-                      :base-hp 39 :base-atk 52 :base-def 43 :base-spc 50 :base-spd 65
-                      :learnset '((1 . "Scratch")(1 . "Growl")(9 . "Ember")(23 . "Slash")))
-   (make-pkmn-species :name "Charmeleon":number 5   :type1 :fire  :type2 nil
-                      :base-hp 58 :base-atk 64 :base-def 58 :base-spc 65 :base-spd 80
-                      :learnset '((1 . "Scratch")(1 . "Ember")(36 . "Flamethrower")(46 . "Fire Blast")))
-   (make-pkmn-species :name "Charizard" :number 6   :type1 :fire  :type2 :flying
-                      :base-hp 78 :base-atk 84 :base-def 78 :base-spc 85 :base-spd 100
-                      :learnset '((1 . "Ember")(36 . "Flamethrower")(46 . "Fire Blast")(56 . "Hyper Beam")))
-   (make-pkmn-species :name "Squirtle"  :number 7   :type1 :water :type2 nil
-                      :base-hp 44 :base-atk 48 :base-def 65 :base-spc 50 :base-spd 43
-                      :learnset '((1 . "Tackle")(1 . "Tail Whip")(13 . "Bubble")(22 . "Water Gun")))
-   (make-pkmn-species :name "Wartortle" :number 8   :type1 :water :type2 nil
-                      :base-hp 59 :base-atk 63 :base-def 80 :base-spc 65 :base-spd 58
-                      :learnset '((1 . "Water Gun")(31 . "Withdraw")(39 . "Surf")(47 . "Hydro Pump")))
-   (make-pkmn-species :name "Blastoise" :number 9   :type1 :water :type2 nil
-                      :base-hp 79 :base-atk 83 :base-def 100 :base-spc 85 :base-spd 78
-                      :learnset '((1 . "Water Gun")(39 . "Surf")(47 . "Hydro Pump")(56 . "Hyper Beam")))
-   ;; ── Caterpie line ─────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Caterpie"  :number 10  :type1 :bug   :type2 nil
-                      :base-hp 45 :base-atk 30 :base-def 35 :base-spc 20 :base-spd 45
-                      :learnset '((1 . "Tackle")(1 . "String Shot")))
-   (make-pkmn-species :name "Metapod"   :number 11  :type1 :bug   :type2 nil
-                      :base-hp 50 :base-atk 20 :base-def 55 :base-spc 25 :base-spd 30
-                      :learnset '((1 . "Harden")))
-   (make-pkmn-species :name "Butterfree":number 12  :type1 :bug   :type2 :flying
-                      :base-hp 60 :base-atk 45 :base-def 50 :base-spc 80 :base-spd 70
-                      :learnset '((1 . "Confusion")(12 . "Psybeam")(21 . "Sleep Powder")(26 . "Psychic")))
-   ;; ── Weedle line ───────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Weedle"    :number 13  :type1 :bug   :type2 :poison
-                      :base-hp 40 :base-atk 35 :base-def 30 :base-spc 20 :base-spd 50
-                      :learnset '((1 . "Poison Sting")(1 . "String Shot")))
-   (make-pkmn-species :name "Kakuna"    :number 14  :type1 :bug   :type2 :poison
-                      :base-hp 45 :base-atk 25 :base-def 50 :base-spc 25 :base-spd 35
-                      :learnset '((1 . "Harden")))
-   (make-pkmn-species :name "Beedrill"  :number 15  :type1 :bug   :type2 :poison
-                      :base-hp 65 :base-atk 80 :base-def 40 :base-spc 45 :base-spd 75
-                      :learnset '((1 . "Poison Sting")(20 . "Toxic")(35 . "Agility")(38 . "Pin Missile")))
-   ;; ── Pidgey line ───────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Pidgey"    :number 16  :type1 :normal :type2 :flying
-                      :base-hp 40 :base-atk 45 :base-def 40 :base-spc 35 :base-spd 56
-                      :learnset '((1 . "Gust")(1 . "Tackle")(21 . "Wing Attack")(28 . "Quick Attack")))
-   (make-pkmn-species :name "Pidgeotto" :number 17  :type1 :normal :type2 :flying
-                      :base-hp 63 :base-atk 60 :base-def 55 :base-spc 50 :base-spd 71
-                      :learnset '((1 . "Gust")(21 . "Wing Attack")(31 . "Hyper Beam")(36 . "Agility")))
-   (make-pkmn-species :name "Pidgeot"   :number 18  :type1 :normal :type2 :flying
-                      :base-hp 83 :base-atk 80 :base-def 75 :base-spc 70 :base-spd 91
-                      :learnset '((1 . "Wing Attack")(36 . "Hyper Beam")(38 . "Agility")(44 . "Gust")))
-   ;; ── Rattata / Raticate ────────────────────────────────────────────────────
-   (make-pkmn-species :name "Rattata"   :number 19  :type1 :normal :type2 nil
-                      :base-hp 30 :base-atk 56 :base-def 35 :base-spc 25 :base-spd 72
-                      :learnset '((1 . "Tackle")(1 . "Tail Whip")(14 . "Quick Attack")(27 . "Body Slam")))
-   (make-pkmn-species :name "Raticate"  :number 20  :type1 :normal :type2 nil
-                      :base-hp 55 :base-atk 81 :base-def 60 :base-spc 50 :base-spd 97
-                      :learnset '((1 . "Quick Attack")(28 . "Body Slam")(34 . "Hyper Beam")(48 . "Super Fang")))
-   ;; ── Spearow / Fearow ──────────────────────────────────────────────────────
-   (make-pkmn-species :name "Spearow"   :number 21  :type1 :normal :type2 :flying
-                      :base-hp 40 :base-atk 60 :base-def 30 :base-spc 31 :base-spd 70
-                      :learnset '((1 . "Peck")(1 . "Growl")(9 . "Leer")(22 . "Fury Attack")))
-   (make-pkmn-species :name "Fearow"    :number 22  :type1 :normal :type2 :flying
-                      :base-hp 65 :base-atk 90 :base-def 65 :base-spc 61 :base-spd 100
-                      :learnset '((1 . "Peck")(20 . "Leer")(29 . "Fury Attack")(34 . "Hyper Beam")))
-   ;; ── Ekans / Arbok ─────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Ekans"     :number 23  :type1 :poison :type2 nil
-                      :base-hp 35 :base-atk 60 :base-def 44 :base-spc 40 :base-spd 55
-                      :learnset '((1 . "Wrap")(1 . "Leer")(17 . "Poison Sting")(27 . "Acid")))
-   (make-pkmn-species :name "Arbok"     :number 24  :type1 :poison :type2 nil
-                      :base-hp 60 :base-atk 85 :base-def 69 :base-spc 65 :base-spd 80
-                      :learnset '((1 . "Poison Sting")(27 . "Acid")(34 . "Toxic")(40 . "Hyper Beam")))
-   ;; ── Sandshrew / Sandslash ─────────────────────────────────────────────────
-   (make-pkmn-species :name "Sandshrew" :number 27  :type1 :ground :type2 nil
-                      :base-hp 50 :base-atk 75 :base-def 85 :base-spc 30 :base-spd 40
-                      :learnset '((1 . "Scratch")(17 . "Sand Attack")(27 . "Dig")(40 . "Earthquake")))
-   (make-pkmn-species :name "Sandslash" :number 28  :type1 :ground :type2 nil
-                      :base-hp 75 :base-atk 100 :base-def 110 :base-spc 55 :base-spd 65
-                      :learnset '((1 . "Scratch")(27 . "Dig")(40 . "Earthquake")(54 . "Slash")))
-   ;; ── Nidoran family ────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Nidoran-F" :number 29  :type1 :poison :type2 nil
-                      :base-hp 55 :base-atk 47 :base-def 52 :base-spc 40 :base-spd 41
-                      :learnset '((1 . "Growl")(1 . "Tackle")(14 . "Poison Sting")(23 . "Body Slam")))
-   (make-pkmn-species :name "Nidorina"  :number 30  :type1 :poison :type2 nil
-                      :base-hp 70 :base-atk 62 :base-def 67 :base-spc 55 :base-spd 56
-                      :learnset '((1 . "Tackle")(23 . "Body Slam")(38 . "Toxic")(44 . "Blizzard")))
-   (make-pkmn-species :name "Nidoqueen" :number 31  :type1 :poison :type2 :ground
-                      :base-hp 90 :base-atk 82 :base-def 87 :base-spc 75 :base-spd 76
-                      :learnset '((1 . "Tackle")(1 . "Earthquake")(1 . "Body Slam")(1 . "Hyper Beam")))
-   (make-pkmn-species :name "Nidoran-M" :number 32  :type1 :poison :type2 nil
-                      :base-hp 46 :base-atk 57 :base-def 40 :base-spc 40 :base-spd 50
-                      :learnset '((1 . "Leer")(1 . "Tackle")(16 . "Poison Sting")(25 . "Focus Energy")))
-   (make-pkmn-species :name "Nidorino"  :number 33  :type1 :poison :type2 nil
-                      :base-hp 61 :base-atk 72 :base-def 57 :base-spc 55 :base-spd 65
-                      :learnset '((1 . "Tackle")(25 . "Focus Energy")(38 . "Toxic")(43 . "Blizzard")))
-   (make-pkmn-species :name "Nidoking"  :number 34  :type1 :poison :type2 :ground
-                      :base-hp 81 :base-atk 92 :base-def 77 :base-spc 75 :base-spd 85
-                      :learnset '((1 . "Tackle")(1 . "Earthquake")(1 . "Toxic")(1 . "Hyper Beam")))
-   ;; ── Clefairy / Clefable ───────────────────────────────────────────────────
-   (make-pkmn-species :name "Clefairy"  :number 35  :type1 :normal :type2 nil
-                      :base-hp 70 :base-atk 45 :base-def 48 :base-spc 60 :base-spd 35
-                      :learnset '((1 . "Pound")(1 . "Growl")(13 . "Sing")(19 . "Body Slam")))
-   (make-pkmn-species :name "Clefable"  :number 36  :type1 :normal :type2 nil
-                      :base-hp 95 :base-atk 70 :base-def 73 :base-spc 85 :base-spd 60
-                      :learnset '((1 . "Pound")(1 . "Sing")(1 . "Body Slam")(1 . "Hyper Beam")))
-   ;; ── Vulpix / Ninetales ────────────────────────────────────────────────────
-   (make-pkmn-species :name "Vulpix"    :number 37  :type1 :fire  :type2 nil
-                      :base-hp 38 :base-atk 41 :base-def 40 :base-spc 65 :base-spd 65
-                      :learnset '((1 . "Ember")(16 . "Quick Attack")(28 . "Flamethrower")(35 . "Fire Blast")))
-   (make-pkmn-species :name "Ninetales" :number 38  :type1 :fire  :type2 nil
-                      :base-hp 73 :base-atk 76 :base-def 75 :base-spc 100 :base-spd 100
-                      :learnset '((1 . "Ember")(1 . "Quick Attack")(1 . "Flamethrower")(1 . "Fire Blast")))
-   ;; ── Jigglypuff / Wigglytuff ───────────────────────────────────────────────
-   (make-pkmn-species :name "Jigglypuff":number 39  :type1 :normal :type2 nil
-                      :base-hp 115 :base-atk 45 :base-def 20 :base-spc 25 :base-spd 20
-                      :learnset '((1 . "Pound")(1 . "Sing")(9 . "Body Slam")(14 . "Slam")))
-   (make-pkmn-species :name "Wigglytuff":number 40  :type1 :normal :type2 nil
-                      :base-hp 140 :base-atk 70 :base-def 45 :base-spc 50 :base-spd 45
-                      :learnset '((1 . "Pound")(1 . "Sing")(1 . "Body Slam")(1 . "Hyper Beam")))
-   ;; ── Zubat / Golbat ────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Zubat"     :number 41  :type1 :poison :type2 :flying
-                      :base-hp 40 :base-atk 45 :base-def 35 :base-spc 40 :base-spd 55
-                      :learnset '((1 . "Leech Life")(1 . "Supersonic")(21 . "Wing Attack")(32 . "Toxic")))
-   (make-pkmn-species :name "Golbat"    :number 42  :type1 :poison :type2 :flying
-                      :base-hp 75 :base-atk 80 :base-def 70 :base-spc 75 :base-spd 90
-                      :learnset '((1 . "Leech Life")(1 . "Wing Attack")(32 . "Toxic")(48 . "Hyper Beam")))
-   ;; ── Oddish line ───────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Oddish"    :number 43  :type1 :grass :type2 :poison
-                      :base-hp 45 :base-atk 50 :base-def 55 :base-spc 75 :base-spd 30
-                      :learnset '((1 . "Absorb")(15 . "Acid")(19 . "Poison Powder")(24 . "Solar Beam")))
-   (make-pkmn-species :name "Gloom"     :number 44  :type1 :grass :type2 :poison
-                      :base-hp 60 :base-atk 65 :base-def 70 :base-spc 85 :base-spd 40
-                      :learnset '((1 . "Acid")(28 . "Solar Beam")(38 . "Toxic")(44 . "Petal Dance")))
-   (make-pkmn-species :name "Vileplume" :number 45  :type1 :grass :type2 :poison
-                      :base-hp 75 :base-atk 80 :base-def 85 :base-spc 100 :base-spd 50
-                      :learnset '((1 . "Acid")(1 . "Solar Beam")(1 . "Toxic")(1 . "Petal Dance")))
-   ;; ── Paras / Parasect ──────────────────────────────────────────────────────
-   (make-pkmn-species :name "Paras"     :number 46  :type1 :bug  :type2 :grass
-                      :base-hp 35 :base-atk 70 :base-def 55 :base-spc 55 :base-spd 25
-                      :learnset '((1 . "Scratch")(1 . "Stun Spore")(13 . "Acid")(30 . "Slash")))
-   (make-pkmn-species :name "Parasect"  :number 47  :type1 :bug  :type2 :grass
-                      :base-hp 60 :base-atk 95 :base-def 80 :base-spc 80 :base-spd 30
-                      :learnset '((1 . "Scratch")(1 . "Slash")(30 . "Spore")(1 . "Leech Life")))
-   ;; ── Venonat / Venomoth ────────────────────────────────────────────────────
-   (make-pkmn-species :name "Venonat"   :number 48  :type1 :bug  :type2 :poison
-                      :base-hp 60 :base-atk 55 :base-def 50 :base-spc 40 :base-spd 45
-                      :learnset '((1 . "Tackle")(1 . "Disable")(19 . "Psybeam")(31 . "Psychic")))
-   (make-pkmn-species :name "Venomoth"  :number 49  :type1 :bug  :type2 :poison
-                      :base-hp 70 :base-atk 65 :base-def 60 :base-spc 90 :base-spd 90
-                      :learnset '((1 . "Psybeam")(31 . "Psychic")(38 . "Leech Life")(43 . "Hyper Beam")))
-   ;; ── Diglett / Dugtrio ─────────────────────────────────────────────────────
-   (make-pkmn-species :name "Diglett"   :number 50  :type1 :ground :type2 nil
-                      :base-hp 10 :base-atk 55 :base-def 25 :base-spc 45 :base-spd 95
-                      :learnset '((1 . "Scratch")(15 . "Growl")(19 . "Dig")(26 . "Earthquake")))
-   (make-pkmn-species :name "Dugtrio"   :number 51  :type1 :ground :type2 nil
-                      :base-hp 35 :base-atk 80 :base-def 50 :base-spc 70 :base-spd 120
-                      :learnset '((1 . "Scratch")(19 . "Dig")(26 . "Earthquake")(35 . "Fissure")))
-   ;; ── Meowth / Persian ──────────────────────────────────────────────────────
-   (make-pkmn-species :name "Meowth"    :number 52  :type1 :normal :type2 nil
-                      :base-hp 40 :base-atk 45 :base-def 35 :base-spc 40 :base-spd 90
-                      :learnset '((1 . "Scratch")(1 . "Growl")(12 . "Bite")(21 . "Screech")))
-   (make-pkmn-species :name "Persian"   :number 53  :type1 :normal :type2 nil
-                      :base-hp 65 :base-atk 70 :base-def 60 :base-spc 65 :base-spd 115
-                      :learnset '((1 . "Scratch")(1 . "Growl")(30 . "Slash")(38 . "Hyper Beam")))
-   ;; ── Psyduck / Golduck ─────────────────────────────────────────────────────
-   (make-pkmn-species :name "Psyduck"   :number 54  :type1 :water :type2 nil
-                      :base-hp 50 :base-atk 52 :base-def 48 :base-spc 50 :base-spd 55
-                      :learnset '((1 . "Scratch")(1 . "Tail Whip")(28 . "Psybeam")(33 . "Confusion")))
-   (make-pkmn-species :name "Golduck"   :number 55  :type1 :water :type2 nil
-                      :base-hp 80 :base-atk 82 :base-def 78 :base-spc 80 :base-spd 85
-                      :learnset '((1 . "Scratch")(33 . "Psybeam")(39 . "Surf")(48 . "Hyper Beam")))
-   ;; ── Mankey / Primeape ─────────────────────────────────────────────────────
-   (make-pkmn-species :name "Mankey"    :number 56  :type1 :fighting :type2 nil
-                      :base-hp 40 :base-atk 80 :base-def 35 :base-spc 35 :base-spd 70
-                      :learnset '((1 . "Scratch")(1 . "Leer")(15 . "Karate Chop")(25 . "Seismic Toss")))
-   (make-pkmn-species :name "Primeape"  :number 57  :type1 :fighting :type2 nil
-                      :base-hp 65 :base-atk 105 :base-def 60 :base-spc 60 :base-spd 95
-                      :learnset '((1 . "Karate Chop")(25 . "Seismic Toss")(35 . "Low Kick")(46 . "Hyper Beam")))
-   ;; ── Growlithe / Arcanine ──────────────────────────────────────────────────
-   (make-pkmn-species :name "Growlithe" :number 58  :type1 :fire  :type2 nil
-                      :base-hp 55 :base-atk 70 :base-def 45 :base-spc 50 :base-spd 60
-                      :learnset '((1 . "Ember")(1 . "Bite")(18 . "Flamethrower")(30 . "Fire Blast")))
-   (make-pkmn-species :name "Arcanine"  :number 59  :type1 :fire  :type2 nil
-                      :base-hp 90 :base-atk 110 :base-def 80 :base-spc 80 :base-spd 95
-                      :learnset '((1 . "Ember")(1 . "Flamethrower")(1 . "Fire Blast")(1 . "Hyper Beam")))
-   ;; ── Poliwag line ──────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Poliwag"   :number 60  :type1 :water :type2 nil
-                      :base-hp 40 :base-atk 50 :base-def 40 :base-spc 40 :base-spd 90
-                      :learnset '((1 . "Bubble")(16 . "Bubblebeam")(19 . "Surf")(31 . "Body Slam")))
-   (make-pkmn-species :name "Poliwhirl" :number 61  :type1 :water :type2 nil
-                      :base-hp 65 :base-atk 65 :base-def 65 :base-spc 50 :base-spd 90
-                      :learnset '((1 . "Bubblebeam")(31 . "Body Slam")(38 . "Surf")(45 . "Amnesia")))
-   (make-pkmn-species :name "Poliwrath" :number 62  :type1 :water :type2 :fighting
-                      :base-hp 90 :base-atk 85 :base-def 95 :base-spc 70 :base-spd 70
-                      :learnset '((1 . "Body Slam")(1 . "Surf")(1 . "Seismic Toss")(1 . "Hyper Beam")))
-   ;; ── Abra line ─────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Abra"      :number 63  :type1 :psychic :type2 nil
-                      :base-hp 25 :base-atk 20 :base-def 15 :base-spc 105 :base-spd 90
-                      :learnset '((1 . "Teleport")))
-   (make-pkmn-species :name "Kadabra"   :number 64  :type1 :psychic :type2 nil
-                      :base-hp 40 :base-atk 35 :base-def 30 :base-spc 120 :base-spd 105
-                      :learnset '((1 . "Confusion")(16 . "Psybeam")(20 . "Recover")(27 . "Psychic")))
-   (make-pkmn-species :name "Alakazam"  :number 65  :type1 :psychic :type2 nil
-                      :base-hp 55 :base-atk 50 :base-def 45 :base-spc 135 :base-spd 120
-                      :learnset '((1 . "Confusion")(27 . "Psychic")(33 . "Recover")(38 . "Hyper Beam")))
-   ;; ── Machop line ───────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Machop"    :number 66  :type1 :fighting :type2 nil
-                      :base-hp 70 :base-atk 80 :base-def 50 :base-spc 35 :base-spd 35
-                      :learnset '((1 . "Karate Chop")(20 . "Low Kick")(29 . "Seismic Toss")(36 . "Submission")))
-   (make-pkmn-species :name "Machoke"   :number 67  :type1 :fighting :type2 nil
-                      :base-hp 80 :base-atk 100 :base-def 70 :base-spc 50 :base-spd 45
-                      :learnset '((1 . "Karate Chop")(29 . "Seismic Toss")(36 . "Submission")(44 . "Hyper Beam")))
-   (make-pkmn-species :name "Machamp"   :number 68  :type1 :fighting :type2 nil
-                      :base-hp 90 :base-atk 130 :base-def 80 :base-spc 65 :base-spd 55
-                      :learnset '((1 . "Karate Chop")(1 . "Seismic Toss")(1 . "Submission")(1 . "Hyper Beam")))
-   ;; ── Bellsprout line ───────────────────────────────────────────────────────
-   (make-pkmn-species :name "Bellsprout":number 69  :type1 :grass :type2 :poison
-                      :base-hp 50 :base-atk 75 :base-def 35 :base-spc 70 :base-spd 40
-                      :learnset '((1 . "Vine Whip")(13 . "Acid")(21 . "Razor Leaf")(26 . "Solar Beam")))
-   (make-pkmn-species :name "Weepinbell":number 70  :type1 :grass :type2 :poison
-                      :base-hp 65 :base-atk 90 :base-def 50 :base-spc 85 :base-spd 55
-                      :learnset '((1 . "Vine Whip")(26 . "Solar Beam")(38 . "Toxic")(43 . "Razor Leaf")))
-   (make-pkmn-species :name "Victreebel":number 71  :type1 :grass :type2 :poison
-                      :base-hp 80 :base-atk 105 :base-def 65 :base-spc 100 :base-spd 70
-                      :learnset '((1 . "Vine Whip")(1 . "Solar Beam")(1 . "Razor Leaf")(1 . "Hyper Beam")))
-   ;; ── Tentacool / Tentacruel ────────────────────────────────────────────────
-   (make-pkmn-species :name "Tentacool" :number 72  :type1 :water :type2 :poison
-                      :base-hp 40 :base-atk 40 :base-def 35 :base-spc 100 :base-spd 70
-                      :learnset '((1 . "Acid")(1 . "Poison Sting")(19 . "Bubblebeam")(30 . "Surf")))
-   (make-pkmn-species :name "Tentacruel":number 73  :type1 :water :type2 :poison
-                      :base-hp 80 :base-atk 70 :base-def 65 :base-spc 120 :base-spd 100
-                      :learnset '((1 . "Acid")(1 . "Bubblebeam")(40 . "Surf")(48 . "Hyper Beam")))
-   ;; ── Geodude line ──────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Geodude"   :number 74  :type1 :rock  :type2 :ground
-                      :base-hp 40 :base-atk 80 :base-def 100 :base-spc 30 :base-spd 20
-                      :learnset '((1 . "Tackle")(11 . "Defense Curl")(16 . "Rock Throw")(21 . "Earthquake")))
-   (make-pkmn-species :name "Graveler"  :number 75  :type1 :rock  :type2 :ground
-                      :base-hp 55 :base-atk 95 :base-def 115 :base-spc 45 :base-spd 35
-                      :learnset '((1 . "Tackle")(21 . "Rock Throw")(36 . "Earthquake")(40 . "Rock Slide")))
-   (make-pkmn-species :name "Golem"     :number 76  :type1 :rock  :type2 :ground
-                      :base-hp 80 :base-atk 110 :base-def 130 :base-spc 55 :base-spd 45
-                      :learnset '((1 . "Tackle")(36 . "Earthquake")(40 . "Rock Slide")(48 . "Hyper Beam")))
-   ;; ── Ponyta / Rapidash ─────────────────────────────────────────────────────
-   (make-pkmn-species :name "Ponyta"    :number 77  :type1 :fire  :type2 nil
-                      :base-hp 50 :base-atk 85 :base-def 55 :base-spc 65 :base-spd 90
-                      :learnset '((1 . "Ember")(26 . "Flamethrower")(32 . "Fire Blast")(38 . "Stomp")))
-   (make-pkmn-species :name "Rapidash"  :number 78  :type1 :fire  :type2 nil
-                      :base-hp 65 :base-atk 100 :base-def 70 :base-spc 80 :base-spd 105
-                      :learnset '((1 . "Ember")(1 . "Flamethrower")(1 . "Fire Blast")(1 . "Hyper Beam")))
-   ;; ── Slowpoke / Slowbro ────────────────────────────────────────────────────
-   (make-pkmn-species :name "Slowpoke"  :number 79  :type1 :water :type2 :psychic
-                      :base-hp 90 :base-atk 65 :base-def 65 :base-spc 40 :base-spd 15
-                      :learnset '((1 . "Tackle")(18 . "Confusion")(22 . "Water Gun")(33 . "Psychic")))
-   (make-pkmn-species :name "Slowbro"   :number 80  :type1 :water :type2 :psychic
-                      :base-hp 95 :base-atk 75 :base-def 110 :base-spc 80 :base-spd 30
-                      :learnset '((1 . "Confusion")(33 . "Psychic")(37 . "Surf")(44 . "Hyper Beam")))
-   ;; ── Magnemite / Magneton ──────────────────────────────────────────────────
-   (make-pkmn-species :name "Magnemite" :number 81  :type1 :electric :type2 nil
-                      :base-hp 25 :base-atk 35 :base-def 70 :base-spc 95 :base-spd 45
-                      :learnset '((1 . "Thunder Shock")(21 . "Thunderbolt")(28 . "Thunder Wave")(38 . "Thunder")))
-   (make-pkmn-species :name "Magneton"  :number 82  :type1 :electric :type2 nil
-                      :base-hp 50 :base-atk 60 :base-def 95 :base-spc 120 :base-spd 70
-                      :learnset '((1 . "Thunder Shock")(21 . "Thunderbolt")(38 . "Thunder")(46 . "Hyper Beam")))
-   ;; ── Farfetch'd ────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Farfetch'd":number 83  :type1 :normal :type2 :flying
-                      :base-hp 52 :base-atk 65 :base-def 55 :base-spc 58 :base-spd 60
-                      :learnset '((1 . "Peck")(1 . "Leer")(1 . "Gust")(1 . "Slash")))
-   ;; ── Doduo / Dodrio ────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Doduo"     :number 84  :type1 :normal :type2 :flying
-                      :base-hp 35 :base-atk 85 :base-def 45 :base-spc 35 :base-spd 75
-                      :learnset '((1 . "Peck")(20 . "Growl")(27 . "Fury Attack")(37 . "Hyper Beam")))
-   (make-pkmn-species :name "Dodrio"    :number 85  :type1 :normal :type2 :flying
-                      :base-hp 60 :base-atk 110 :base-def 70 :base-spc 60 :base-spd 100
-                      :learnset '((1 . "Peck")(1 . "Fury Attack")(37 . "Hyper Beam")(44 . "Agility")))
-   ;; ── Seel / Dewgong ────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Seel"      :number 86  :type1 :water :type2 nil
-                      :base-hp 65 :base-atk 45 :base-def 55 :base-spc 70 :base-spd 45
-                      :learnset '((1 . "Headbutt")(30 . "Ice Beam")(35 . "Blizzard")(40 . "Surf")))
-   (make-pkmn-species :name "Dewgong"   :number 87  :type1 :water :type2 :ice
-                      :base-hp 90 :base-atk 70 :base-def 80 :base-spc 95 :base-spd 70
-                      :learnset '((1 . "Headbutt")(35 . "Ice Beam")(44 . "Blizzard")(50 . "Surf")))
-   ;; ── Grimer / Muk ──────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Grimer"    :number 88  :type1 :poison :type2 nil
-                      :base-hp 80 :base-atk 80 :base-def 50 :base-spc 40 :base-spd 25
-                      :learnset '((1 . "Pound")(1 . "Disable")(30 . "Acid")(38 . "Toxic")))
-   (make-pkmn-species :name "Muk"       :number 89  :type1 :poison :type2 nil
-                      :base-hp 105 :base-atk 105 :base-def 75 :base-spc 65 :base-spd 50
-                      :learnset '((1 . "Pound")(38 . "Acid")(45 . "Toxic")(48 . "Hyper Beam")))
-   ;; ── Shellder / Cloyster ───────────────────────────────────────────────────
-   (make-pkmn-species :name "Shellder"  :number 90  :type1 :water :type2 nil
-                      :base-hp 30 :base-atk 65 :base-def 100 :base-spc 45 :base-spd 40
-                      :learnset '((1 . "Tackle")(1 . "Withdraw")(18 . "Ice Beam")(26 . "Blizzard")))
-   (make-pkmn-species :name "Cloyster"  :number 91  :type1 :water :type2 :ice
-                      :base-hp 50 :base-atk 95 :base-def 180 :base-spc 85 :base-spd 70
-                      :learnset '((1 . "Surf")(1 . "Ice Beam")(1 . "Blizzard")(1 . "Hyper Beam")))
-   ;; ── Gastly line ───────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Gastly"    :number 92  :type1 :ghost :type2 :poison
-                      :base-hp 30 :base-atk 35 :base-def 30 :base-spc 100 :base-spd 80
-                      :learnset '((1 . "Lick")(1 . "Night Shade")(27 . "Confuse Ray")(35 . "Psychic")))
-   (make-pkmn-species :name "Haunter"   :number 93  :type1 :ghost :type2 :poison
-                      :base-hp 45 :base-atk 50 :base-def 45 :base-spc 115 :base-spd 95
-                      :learnset '((1 . "Lick")(1 . "Night Shade")(29 . "Confuse Ray")(38 . "Psychic")))
-   (make-pkmn-species :name "Gengar"    :number 94  :type1 :ghost :type2 :poison
-                      :base-hp 60 :base-atk 65 :base-def 60 :base-spc 130 :base-spd 110
-                      :learnset '((1 . "Lick")(1 . "Night Shade")(38 . "Confuse Ray")(45 . "Hyper Beam")))
-   ;; ── Onix ──────────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Onix"      :number 95  :type1 :rock  :type2 :ground
-                      :base-hp 35 :base-atk 45 :base-def 160 :base-spc 30 :base-spd 70
-                      :learnset '((1 . "Tackle")(1 . "Screech")(15 . "Rock Throw")(34 . "Earthquake")))
-   ;; ── Drowzee / Hypno ───────────────────────────────────────────────────────
-   (make-pkmn-species :name "Drowzee"   :number 96  :type1 :psychic :type2 nil
-                      :base-hp 60 :base-atk 48 :base-def 45 :base-spc 90 :base-spd 42
-                      :learnset '((1 . "Pound")(1 . "Disable")(12 . "Confusion")(24 . "Psychic")))
-   (make-pkmn-species :name "Hypno"     :number 97  :type1 :psychic :type2 nil
-                      :base-hp 85 :base-atk 73 :base-def 70 :base-spc 115 :base-spd 67
-                      :learnset '((1 . "Confusion")(24 . "Psychic")(33 . "Psychic")(37 . "Hyper Beam")))
-   ;; ── Krabby / Kingler ──────────────────────────────────────────────────────
-   (make-pkmn-species :name "Krabby"    :number 98  :type1 :water :type2 nil
-                      :base-hp 30 :base-atk 105 :base-def 90 :base-spc 25 :base-spd 50
-                      :learnset '((1 . "Bubble")(20 . "Vicegrip")(25 . "Surf")(30 . "Slash")))
-   (make-pkmn-species :name "Kingler"   :number 99  :type1 :water :type2 nil
-                      :base-hp 55 :base-atk 130 :base-def 115 :base-spc 50 :base-spd 75
-                      :learnset '((1 . "Bubble")(1 . "Surf")(1 . "Slash")(1 . "Hyper Beam")))
-   ;; ── Voltorb / Electrode ───────────────────────────────────────────────────
-   (make-pkmn-species :name "Voltorb"   :number 100 :type1 :electric :type2 nil
-                      :base-hp 40 :base-atk 30 :base-def 50 :base-spc 55 :base-spd 100
-                      :learnset '((1 . "Tackle")(17 . "Thunderbolt")(22 . "Thunder Wave")(29 . "Thunder")))
-   (make-pkmn-species :name "Electrode" :number 101 :type1 :electric :type2 nil
-                      :base-hp 60 :base-atk 50 :base-def 70 :base-spc 80 :base-spd 140
-                      :learnset '((1 . "Thunderbolt")(29 . "Thunder Wave")(40 . "Thunder")(50 . "Hyper Beam")))
-   ;; ── Exeggcute / Exeggutor ─────────────────────────────────────────────────
-   (make-pkmn-species :name "Exeggcute" :number 102 :type1 :grass :type2 :psychic
-                      :base-hp 60 :base-atk 40 :base-def 80 :base-spc 60 :base-spd 40
-                      :learnset '((1 . "Absorb")(25 . "Confusion")(28 . "Solar Beam")(32 . "Psychic")))
-   (make-pkmn-species :name "Exeggutor" :number 103 :type1 :grass :type2 :psychic
-                      :base-hp 95 :base-atk 95 :base-def 85 :base-spc 125 :base-spd 55
-                      :learnset '((1 . "Confusion")(1 . "Solar Beam")(1 . "Psychic")(1 . "Hyper Beam")))
-   ;; ── Cubone / Marowak ──────────────────────────────────────────────────────
-   (make-pkmn-species :name "Cubone"    :number 104 :type1 :ground :type2 nil
-                      :base-hp 50 :base-atk 50 :base-def 95 :base-spc 40 :base-spd 35
-                      :learnset '((1 . "Growl")(1 . "Bone Club")(18 . "Leer")(25 . "Earthquake")))
-   (make-pkmn-species :name "Marowak"   :number 105 :type1 :ground :type2 nil
-                      :base-hp 60 :base-atk 80 :base-def 110 :base-spc 50 :base-spd 45
-                      :learnset '((1 . "Bone Club")(25 . "Earthquake")(33 . "Bonemerang")(41 . "Hyper Beam")))
-   ;; ── Hitmonlee / Hitmonchan ────────────────────────────────────────────────
-   (make-pkmn-species :name "Hitmonlee" :number 106 :type1 :fighting :type2 nil
-                      :base-hp 50 :base-atk 120 :base-def 53 :base-spc 35 :base-spd 87
-                      :learnset '((1 . "Double Kick")(1 . "Meditate")(33 . "Low Kick")(38 . "Seismic Toss")))
-   (make-pkmn-species :name "Hitmonchan":number 107 :type1 :fighting :type2 nil
-                      :base-hp 50 :base-atk 105 :base-def 79 :base-spc 35 :base-spd 76
-                      :learnset '((1 . "Comet Punch")(33 . "Karate Chop")(38 . "Seismic Toss")(44 . "Hyper Beam")))
-   ;; ── Lickitung ─────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Lickitung" :number 108 :type1 :normal :type2 nil
-                      :base-hp 90 :base-atk 55 :base-def 75 :base-spc 60 :base-spd 30
-                      :learnset '((1 . "Pound")(1 . "Lick")(7 . "Body Slam")(15 . "Slam")))
-   ;; ── Koffing / Weezing ─────────────────────────────────────────────────────
-   (make-pkmn-species :name "Koffing"   :number 109 :type1 :poison :type2 nil
-                      :base-hp 40 :base-atk 65 :base-def 95 :base-spc 60 :base-spd 35
-                      :learnset '((1 . "Pound")(1 . "Tackle")(32 . "Acid")(40 . "Toxic")))
-   (make-pkmn-species :name "Weezing"   :number 110 :type1 :poison :type2 nil
-                      :base-hp 65 :base-atk 90 :base-def 120 :base-spc 85 :base-spd 60
-                      :learnset '((1 . "Pound")(40 . "Acid")(48 . "Toxic")(53 . "Hyper Beam")))
-   ;; ── Rhyhorn / Rhydon ──────────────────────────────────────────────────────
-   (make-pkmn-species :name "Rhyhorn"   :number 111 :type1 :ground :type2 :rock
-                      :base-hp 80 :base-atk 85 :base-def 95 :base-spc 30 :base-spd 25
-                      :learnset '((1 . "Horn Attack")(30 . "Leer")(35 . "Earthquake")(48 . "Rock Slide")))
-   (make-pkmn-species :name "Rhydon"    :number 112 :type1 :ground :type2 :rock
-                      :base-hp 105 :base-atk 130 :base-def 120 :base-spc 45 :base-spd 40
-                      :learnset '((1 . "Horn Attack")(35 . "Earthquake")(48 . "Rock Slide")(58 . "Hyper Beam")))
-   ;; ── Chansey ───────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Chansey"   :number 113 :type1 :normal :type2 nil
-                      :base-hp 250 :base-atk 5 :base-def 5 :base-spc 105 :base-spd 50
-                      :learnset '((1 . "Pound")(1 . "Growl")(23 . "Sing")(33 . "Egg Bomb")))
-   ;; ── Tangela ───────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Tangela"   :number 114 :type1 :grass :type2 nil
-                      :base-hp 65 :base-atk 55 :base-def 115 :base-spc 100 :base-spd 60
-                      :learnset '((1 . "Bind")(29 . "Vine Whip")(32 . "Razor Leaf")(37 . "Solar Beam")))
-   ;; ── Kangaskhan ────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Kangaskhan":number 115 :type1 :normal :type2 nil
-                      :base-hp 105 :base-atk 95 :base-def 80 :base-spc 40 :base-spd 90
-                      :learnset '((1 . "Pound")(1 . "Growl")(26 . "Body Slam")(32 . "Hyper Beam")))
-   ;; ── Horsea / Seadra ───────────────────────────────────────────────────────
-   (make-pkmn-species :name "Horsea"    :number 116 :type1 :water :type2 nil
-                      :base-hp 30 :base-atk 40 :base-def 70 :base-spc 70 :base-spd 60
-                      :learnset '((1 . "Bubble")(19 . "Bubblebeam")(24 . "Surf")(30 . "Hydro Pump")))
-   (make-pkmn-species :name "Seadra"    :number 117 :type1 :water :type2 nil
-                      :base-hp 55 :base-atk 65 :base-def 95 :base-spc 95 :base-spd 85
-                      :learnset '((1 . "Bubblebeam")(32 . "Surf")(41 . "Hydro Pump")(48 . "Hyper Beam")))
-   ;; ── Goldeen / Seaking ─────────────────────────────────────────────────────
-   (make-pkmn-species :name "Goldeen"   :number 118 :type1 :water :type2 nil
-                      :base-hp 45 :base-atk 67 :base-def 60 :base-spc 50 :base-spd 63
-                      :learnset '((1 . "Peck")(1 . "Tail Whip")(19 . "Surf")(24 . "Horn Drill")))
-   (make-pkmn-species :name "Seaking"   :number 119 :type1 :water :type2 nil
-                      :base-hp 80 :base-atk 92 :base-def 65 :base-spc 80 :base-spd 68
-                      :learnset '((1 . "Peck")(27 . "Surf")(40 . "Hyper Beam")(48 . "Horn Drill")))
-   ;; ── Staryu / Starmie ──────────────────────────────────────────────────────
-   (make-pkmn-species :name "Staryu"    :number 120 :type1 :water :type2 nil
-                      :base-hp 30 :base-atk 45 :base-def 55 :base-spc 70 :base-spd 85
-                      :learnset '((1 . "Tackle")(1 . "Water Gun")(17 . "Bubblebeam")(22 . "Surf")))
-   (make-pkmn-species :name "Starmie"   :number 121 :type1 :water :type2 :psychic
-                      :base-hp 60 :base-atk 75 :base-def 85 :base-spc 100 :base-spd 115
-                      :learnset '((1 . "Water Gun")(1 . "Bubblebeam")(1 . "Surf")(1 . "Psychic")))
-   ;; ── Mr. Mime ──────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Mr. Mime"  :number 122 :type1 :psychic :type2 nil
-                      :base-hp 40 :base-atk 45 :base-def 65 :base-spc 100 :base-spd 90
-                      :learnset '((1 . "Confusion")(1 . "Barrier")(23 . "Psybeam")(33 . "Psychic")))
-   ;; ── Scyther ───────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Scyther"   :number 123 :type1 :bug  :type2 :flying
-                      :base-hp 70 :base-atk 110 :base-def 80 :base-spc 55 :base-spd 105
-                      :learnset '((1 . "Quick Attack")(17 . "Leer")(20 . "Wing Attack")(32 . "Slash")))
-   ;; ── Jynx ──────────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Jynx"      :number 124 :type1 :ice   :type2 :psychic
-                      :base-hp 65 :base-atk 50 :base-def 35 :base-spc 95 :base-spd 95
-                      :learnset '((1 . "Pound")(1 . "Sing")(18 . "Ice Beam")(26 . "Blizzard")))
-   ;; ── Electabuzz ────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Electabuzz":number 125 :type1 :electric :type2 nil
-                      :base-hp 65 :base-atk 83 :base-def 57 :base-spc 95 :base-spd 105
-                      :learnset '((1 . "Thunder Shock")(34 . "Thunderbolt")(37 . "Thunder Wave")(42 . "Thunder")))
-   ;; ── Magmar ────────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Magmar"    :number 126 :type1 :fire  :type2 nil
-                      :base-hp 65 :base-atk 95 :base-def 57 :base-spc 85 :base-spd 93
-                      :learnset '((1 . "Ember")(36 . "Flamethrower")(39 . "Fire Blast")(42 . "Hyper Beam")))
-   ;; ── Pinsir ────────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Pinsir"    :number 127 :type1 :bug   :type2 nil
-                      :base-hp 65 :base-atk 125 :base-def 100 :base-spc 55 :base-spd 85
-                      :learnset '((1 . "Vicegrip")(1 . "Bind")(25 . "Seismic Toss")(40 . "Hyper Beam")))
-   ;; ── Tauros ────────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Tauros"    :number 128 :type1 :normal :type2 nil
-                      :base-hp 75 :base-atk 100 :base-def 95 :base-spc 70 :base-spd 110
-                      :learnset '((1 . "Tackle")(21 . "Leer")(28 . "Body Slam")(35 . "Hyper Beam")))
-   ;; ── Magikarp / Gyarados ───────────────────────────────────────────────────
-   (make-pkmn-species :name "Magikarp"  :number 129 :type1 :water :type2 nil
-                      :base-hp 20 :base-atk 10 :base-def 55 :base-spc 20 :base-spd 80
-                      :learnset '((1 . "Splash")(15 . "Tackle")))
-   (make-pkmn-species :name "Gyarados"  :number 130 :type1 :water :type2 :flying
-                      :base-hp 95 :base-atk 125 :base-def 79 :base-spc 100 :base-spd 81
-                      :learnset '((1 . "Surf")(1 . "Body Slam")(1 . "Bite")(1 . "Hyper Beam")))
-   ;; ── Lapras ────────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Lapras"    :number 131 :type1 :water :type2 :ice
-                      :base-hp 130 :base-atk 85 :base-def 80 :base-spc 95 :base-spd 60
-                      :learnset '((1 . "Water Gun")(21 . "Ice Beam")(25 . "Blizzard")(31 . "Surf")))
-   ;; ── Ditto ─────────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Ditto"     :number 132 :type1 :normal :type2 nil
-                      :base-hp 48 :base-atk 48 :base-def 48 :base-spc 48 :base-spd 48
-                      :learnset '((1 . "Transform")))
-   ;; ── Eevee evolutions ──────────────────────────────────────────────────────
-   (make-pkmn-species :name "Eevee"     :number 133 :type1 :normal :type2 nil
-                      :base-hp 55 :base-atk 55 :base-def 50 :base-spc 65 :base-spd 55
-                      :learnset '((1 . "Tackle")(1 . "Tail Whip")(27 . "Quick Attack")(31 . "Body Slam")))
-   (make-pkmn-species :name "Vaporeon"  :number 134 :type1 :water :type2 nil
-                      :base-hp 130 :base-atk 65 :base-def 60 :base-spc 110 :base-spd 65
-                      :learnset '((1 . "Tackle")(1 . "Water Gun")(36 . "Surf")(42 . "Hydro Pump")))
-   (make-pkmn-species :name "Jolteon"   :number 135 :type1 :electric :type2 nil
-                      :base-hp 65 :base-atk 65 :base-def 60 :base-spc 110 :base-spd 130
-                      :learnset '((1 . "Tackle")(1 . "Thunder Shock")(36 . "Thunderbolt")(42 . "Thunder")))
-   (make-pkmn-species :name "Flareon"   :number 136 :type1 :fire :type2 nil
-                      :base-hp 65 :base-atk 130 :base-def 60 :base-spc 110 :base-spd 65
-                      :learnset '((1 . "Tackle")(1 . "Ember")(36 . "Flamethrower")(42 . "Fire Blast")))
-   ;; ── Porygon ───────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Porygon"   :number 137 :type1 :normal :type2 nil
-                      :base-hp 65 :base-atk 60 :base-def 70 :base-spc 75 :base-spd 40
-                      :learnset '((1 . "Tackle")(1 . "Sharpen")(1 . "Psybeam")(23 . "Tri Attack")))
-   ;; ── Omanyte / Omastar ─────────────────────────────────────────────────────
-   (make-pkmn-species :name "Omanyte"   :number 138 :type1 :rock  :type2 :water
-                      :base-hp 35 :base-atk 40 :base-def 100 :base-spc 90 :base-spd 35
-                      :learnset '((1 . "Water Gun")(34 . "Bubblebeam")(39 . "Surf")(46 . "Hydro Pump")))
-   (make-pkmn-species :name "Omastar"   :number 139 :type1 :rock  :type2 :water
-                      :base-hp 70 :base-atk 60 :base-def 125 :base-spc 115 :base-spd 55
-                      :learnset '((1 . "Water Gun")(39 . "Surf")(46 . "Hydro Pump")(53 . "Hyper Beam")))
-   ;; ── Kabuto / Kabutops ─────────────────────────────────────────────────────
-   (make-pkmn-species :name "Kabuto"    :number 140 :type1 :rock  :type2 :water
-                      :base-hp 30 :base-atk 80 :base-def 90 :base-spc 55 :base-spd 55
-                      :learnset '((1 . "Scratch")(34 . "Bubblebeam")(39 . "Surf")(46 . "Hydro Pump")))
-   (make-pkmn-species :name "Kabutops"  :number 141 :type1 :rock  :type2 :water
-                      :base-hp 60 :base-atk 115 :base-def 105 :base-spc 70 :base-spd 80
-                      :learnset '((1 . "Scratch")(46 . "Surf")(52 . "Hydro Pump")(59 . "Hyper Beam")))
-   ;; ── Aerodactyl ────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Aerodactyl":number 142 :type1 :rock  :type2 :flying
-                      :base-hp 80 :base-atk 105 :base-def 65 :base-spc 60 :base-spd 130
-                      :learnset '((1 . "Wing Attack")(33 . "Hyper Beam")(38 . "Agility")(48 . "Rock Slide")))
-   ;; ── Snorlax ───────────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Snorlax"   :number 143 :type1 :normal :type2 nil
-                      :base-hp 160 :base-atk 110 :base-def 65 :base-spc 65 :base-spd 30
-                      :learnset '((1 . "Tackle")(1 . "Body Slam")(35 . "Hyper Beam")(41 . "Amnesia")))
-   ;; ── Articuno / Zapdos / Moltres ───────────────────────────────────────────
-   (make-pkmn-species :name "Articuno"  :number 144 :type1 :ice   :type2 :flying
-                      :base-hp 90 :base-atk 85 :base-def 100 :base-spc 125 :base-spd 85
-                      :learnset '((1 . "Ice Beam")(51 . "Blizzard")(55 . "Hyper Beam")(1 . "Agility")))
-   (make-pkmn-species :name "Zapdos"    :number 145 :type1 :electric :type2 :flying
-                      :base-hp 90 :base-atk 90 :base-def 85 :base-spc 125 :base-spd 100
-                      :learnset '((1 . "Thunderbolt")(51 . "Thunder")(55 . "Hyper Beam")(1 . "Agility")))
-   (make-pkmn-species :name "Moltres"   :number 146 :type1 :fire  :type2 :flying
-                      :base-hp 90 :base-atk 100 :base-def 90 :base-spc 125 :base-spd 90
-                      :learnset '((1 . "Fire Blast")(51 . "Flamethrower")(55 . "Hyper Beam")(1 . "Agility")))
-   ;; ── Dratini / Dragonair / Dragonite ───────────────────────────────────────
-   (make-pkmn-species :name "Dratini"   :number 147 :type1 :dragon :type2 nil
-                      :base-hp 41 :base-atk 64 :base-def 45 :base-spc 50 :base-spd 50
-                      :learnset '((1 . "Wrap")(1 . "Leer")(10 . "Thunder Wave")(20 . "Slam")))
-   (make-pkmn-species :name "Dragonair" :number 148 :type1 :dragon :type2 nil
-                      :base-hp 61 :base-atk 84 :base-def 65 :base-spc 70 :base-spd 70
-                      :learnset '((1 . "Wrap")(1 . "Slam")(35 . "Hyper Beam")(38 . "Agility")))
-   (make-pkmn-species :name "Dragonite" :number 149 :type1 :dragon :type2 :flying
-                      :base-hp 91 :base-atk 134 :base-def 95 :base-spc 100 :base-spd 80
-                      :learnset '((1 . "Slam")(1 . "Hyper Beam")(1 . "Agility")(1 . "Blizzard")))
-   ;; ── Legendary trio ────────────────────────────────────────────────────────
-   (make-pkmn-species :name "Mewtwo"    :number 150 :type1 :psychic :type2 nil
-                      :base-hp 106 :base-atk 110 :base-def 90 :base-spc 154 :base-spd 130
-                      :learnset '((1 . "Confusion")(1 . "Psychic")(63 . "Recover")(66 . "Hyper Beam")))
-   (make-pkmn-species :name "Mew"       :number 151 :type1 :psychic :type2 nil
-                      :base-hp 100 :base-atk 100 :base-def 100 :base-spc 100 :base-spd 100
-                      :learnset '((1 . "Pound")(1 . "Psychic")(1 . "Hyper Beam")(1 . "Blizzard")))))
+(defun calc-hp (base level)
+  (max 1 (floor (+ (* 2 base level) level 10) 100)))
 
-(defun find-pokemon (name)
-  "Look up a species by name string. Returns nil if not found."
-  (find name *gen1-yellow-roster* :key #'species-name :test #'string-equal))
+(defun calc-stat (base level)
+  (floor (+ (* 2 base level) 5) 100))
 
-;;;; ── Badge-battle party presets ────────────────────────────────────────────
-;;; Each entry: (species-name level move1 move2 move3 move4)
+;;;; ── Query API ───────────────────────────────────────────────────────────────
+;;; All queries use the kb returned by pokemon-logic:make-pokemon-kb.
+;;; The kb is passed explicitly — no global state.
 
-(defun make-battle-mon (species-name level &rest move-names)
-  "Construct a battle-ready plist from catalog data and a level."
-  (let* ((species (or (find-pokemon species-name)
-                      (error "Unknown species: ~S" species-name)))
-         (max-hp  (max 1 (floor (+ (* 2 (species-base-hp species) level) level 10) 100)))
-         (moves   (remove nil (mapcar #'find-move move-names))))
-    (list :name      (species-name species)
-          :species   species
-          :level     level
-          :hp        max-hp
-          :max-hp    max-hp
-          :type1     (species-type1 species)
-          :type2     (species-type2 species)
-          :atk       (floor (+ (* 2 (species-base-atk species) level) 5) 100)
-          :def       (floor (+ (* 2 (species-base-def species) level) 5) 100)
-          :spc       (floor (+ (* 2 (species-base-spc species) level) 5) 100)
-          :spd       (floor (+ (* 2 (species-base-spd species) level) 5) 100)
-          :moves     moves
-          :status    nil
-          :stages    (list :atk 0 :def 0 :spc 0 :spd 0)
-          :items     nil)))
+(defun find-pokemon (kb name)
+  "Return a plist for species NAME from KB, or NIL."
+  (let ((r (pokemon-logic::db-prove-first kb `(pokemon ,name ?num ?t1 ?t2 ?hp ?atk ?def ?spc ?spd))))
+    (when r
+      (list :name name
+            :number  (pokemon-logic::%lookup '?num r)
+            :type1   (pokemon-logic::%lookup '?t1  r)
+            :type2   (let ((t2 (pokemon-logic::%lookup '?t2 r)))
+                       (if (eq t2 :none) nil t2))
+            :base-hp  (pokemon-logic::%lookup '?hp  r)
+            :base-atk (pokemon-logic::%lookup '?atk r)
+            :base-def (pokemon-logic::%lookup '?def r)
+            :base-spc (pokemon-logic::%lookup '?spc r)
+            :base-spd (pokemon-logic::%lookup '?spd r)))))
 
-;;; ── Gym leader parties (Yellow version) ─────────────────────────────────────
+(defun species-type1 (species-plist)
+  (getf species-plist :type1))
 
-(defun brock-party ()
-  "Pewter City — Brock, Rock/Ground specialist."
-  (list (make-battle-mon "Geodude"  12 "Tackle" "Defense Curl" "Rock Throw")
-        (make-battle-mon "Onix"     14 "Tackle" "Screech" "Rock Throw" "Bind")))
+(defun find-move (kb name)
+  "Return a plist for move NAME from KB, or NIL."
+  (let ((r (pokemon-logic::db-prove-first kb `(move ,name ?type ?cat ?pow ?acc ?pp ?eff))))
+    (when r
+      (list :name     name
+            :type     (pokemon-logic::%lookup '?type r)
+            :category (pokemon-logic::%lookup '?cat  r)
+            :power    (pokemon-logic::%lookup '?pow  r)
+            :accuracy (pokemon-logic::%lookup '?acc  r)
+            :pp       (pokemon-logic::%lookup '?pp   r)
+            :effect   (pokemon-logic::%lookup '?eff  r)))))
 
-(defun misty-party ()
-  "Cerulean City — Misty, Water specialist."
-  (list (make-battle-mon "Staryu"   18 "Tackle" "Water Gun" "Bubblebeam")
-        (make-battle-mon "Starmie"  21 "Bubblebeam" "Water Gun" "Surf" "Psychic")))
+(defun move-name     (m) (getf m :name))
+(defun move-type     (m) (getf m :type))
+(defun move-category (m) (getf m :category))
+(defun move-power    (m) (getf m :power))
 
-(defun lt-surge-party ()
-  "Vermilion City — Lt. Surge, Electric specialist."
-  (list (make-battle-mon "Raichu"   28 "Thunderbolt" "Thunder Wave" "Quick Attack" "Body Slam")))
+(defun find-item (kb name)
+  "Return a plist for item NAME from KB, or NIL."
+  (let ((r (pokemon-logic::db-prove-first kb `(item ,name ?sym ?desc))))
+    (when r
+      (list :name   name
+            :symbol (pokemon-logic::%lookup '?sym  r)
+            :desc   (pokemon-logic::%lookup '?desc r)))))
 
-(defun erika-party ()
-  "Celadon City — Erika, Grass specialist."
-  (list (make-battle-mon "Victreebel" 29 "Razor Leaf" "Acid" "Solar Beam" "Toxic")
-        (make-battle-mon "Tangela"    24 "Bind" "Vine Whip" "Razor Leaf")
-        (make-battle-mon "Vileplume"  29 "Acid" "Petal Dance" "Solar Beam" "Toxic")))
+(defun make-battle-mon (kb name level &rest move-names)
+  "Build a battle-ready plist from Prolog facts for NAME at LEVEL."
+  (let ((sp (find-pokemon kb name)))
+    (unless sp (error "Unknown species: ~S" name))
+    (let* ((max-hp (calc-hp  (getf sp :base-hp)  level))
+           (moves  (remove nil (mapcar (lambda (mn) (find-move kb mn)) move-names))))
+      (list :name    name
+            :species sp
+            :level   level
+            :hp      max-hp
+            :max-hp  max-hp
+            :type1   (getf sp :type1)
+            :type2   (getf sp :type2)
+            :atk     (calc-stat (getf sp :base-atk) level)
+            :def     (calc-stat (getf sp :base-def) level)
+            :spc     (calc-stat (getf sp :base-spc) level)
+            :spd     (calc-stat (getf sp :base-spd) level)
+            :moves   moves
+            :status  nil))))
 
-(defun koga-party ()
-  "Fuchsia City — Koga, Poison specialist."
-  (list (make-battle-mon "Koffing"   37 "Tackle" "Acid" "Toxic" "Smokescreen")
-        (make-battle-mon "Muk"       39 "Pound" "Acid" "Toxic" "Body Slam")
-        (make-battle-mon "Koffing"   37 "Tackle" "Acid" "Toxic" "Smokescreen")
-        (make-battle-mon "Weezing"   43 "Pound" "Acid" "Toxic" "Hyper Beam")))
+(defun gym-party (kb gym-keyword)
+  "Return the list of battle-mon plists for GYM-KEYWORD's party."
+  (let ((slots (pokemon-logic::db-prove-all
+                 kb `(gym-party ,gym-keyword ?slot ?name ?lvl ?m1 ?m2 ?m3 ?m4))))
+    (mapcar (lambda (b)
+              (let ((name  (pokemon-logic::%lookup '?name b))
+                    (level (pokemon-logic::%lookup '?lvl  b))
+                    (moves (remove :none
+                             (list (pokemon-logic::%lookup '?m1 b)
+                                   (pokemon-logic::%lookup '?m2 b)
+                                   (pokemon-logic::%lookup '?m3 b)
+                                   (pokemon-logic::%lookup '?m4 b)))))
+                (apply #'make-battle-mon kb name level moves)))
+            (sort slots #'< :key (lambda (b) (pokemon-logic::%lookup '?slot b))))))
 
-(defun sabrina-party ()
-  "Saffron City — Sabrina, Psychic specialist."
-  (list (make-battle-mon "Kadabra"   38 "Confusion" "Psybeam" "Recover" "Psychic")
-        (make-battle-mon "Mr. Mime"  37 "Confusion" "Psybeam" "Barrier" "Psychic")
-        (make-battle-mon "Venomoth"  38 "Psybeam" "Psychic" "Leech Life")
-        (make-battle-mon "Alakazam"  43 "Confusion" "Psybeam" "Recover" "Psychic")))
+(defun brock-party    (kb) (gym-party kb :brock))
+(defun misty-party    (kb) (gym-party kb :misty))
+(defun lt-surge-party (kb) (gym-party kb :lt-surge))
+(defun erika-party    (kb) (gym-party kb :erika))
+(defun koga-party     (kb) (gym-party kb :koga))
+(defun sabrina-party  (kb) (gym-party kb :sabrina))
+(defun blaine-party   (kb) (gym-party kb :blaine))
+(defun giovanni-party (kb) (gym-party kb :giovanni))
 
-(defun blaine-party ()
-  "Cinnabar Island — Blaine, Fire specialist."
-  (list (make-battle-mon "Growlithe" 42 "Ember" "Flamethrower" "Bite")
-        (make-battle-mon "Ponyta"    40 "Ember" "Flamethrower" "Fire Blast")
-        (make-battle-mon "Rapidash"  42 "Ember" "Flamethrower" "Fire Blast")
-        (make-battle-mon "Arcanine"  47 "Ember" "Flamethrower" "Fire Blast" "Hyper Beam")))
+(defun starter-pikachu (kb)
+  (make-battle-mon kb "Pikachu" 5 "Thunder Shock" "Growl"))
 
-(defun giovanni-party ()
-  "Viridian City — Giovanni, Ground specialist."
-  (list (make-battle-mon "Rhyhorn"   45 "Horn Attack" "Leer" "Earthquake" "Rock Slide")
-        (make-battle-mon "Dugtrio"   42 "Scratch" "Dig" "Earthquake")
-        (make-battle-mon "Nidoqueen" 44 "Tackle" "Earthquake" "Body Slam" "Toxic")
-        (make-battle-mon "Nidoking"  45 "Tackle" "Earthquake" "Toxic" "Hyper Beam")
-        (make-battle-mon "Rhydon"    50 "Horn Attack" "Earthquake" "Rock Slide" "Hyper Beam")))
+;; Elite Four
+(defun lorelei-party  (kb) (gym-party kb :lorelei))
+(defun bruno-party    (kb) (gym-party kb :bruno))
+(defun agatha-party   (kb) (gym-party kb :agatha))
+(defun lance-party    (kb) (gym-party kb :lance))
+;; Champion
+(defun gary-party     (kb) (gym-party kb :gary))
+;; Route rivals
+(defun gary-route22-early-party (kb) (gym-party kb :gary-route22-early))
+(defun gary-ss-anne-party       (kb) (gym-party kb :gary-ss-anne))
+(defun gary-silph-party         (kb) (gym-party kb :gary-silph))
 
-;;; ── Starter ──────────────────────────────────────────────────────────────────
+(defun all-pokemon (kb)
+  "Return list of all 151 species name strings."
+  (mapcar (lambda (b) (pokemon-logic::%lookup '?name b))
+          (pokemon-logic::db-prove-all kb '(pokemon ?name ?num ?t1 ?t2 ?hp ?atk ?def ?spc ?spd))))
 
-(defun starter-pikachu ()
-  "Yellow's special starter — level 5 Pikachu."
-  (make-battle-mon "Pikachu" 5 "Thunder Shock" "Growl"))
+;;; ── Extended trainer catalog ─────────────────────────────────────────────────
+;;; Called from assert-catalog-facts via the same (pf 'gym-party ...) pattern.
+;;; These are appended here; assert-catalog-facts already iterates the full list.

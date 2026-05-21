@@ -1,12 +1,24 @@
 (asdf:load-system "coalton-asdf")
 
 (defsystem "pokemon-sim"
-  :depends-on ("coalton" "coalton-asdf" "paiprolog" "fiveam" "arrows" "named-readtables")
+  :description "Gen-I Yellow Pokémon battle simulator — Prolog rules, Coalton types, CL glue"
+  :version "0.2.0"
+  :depends-on ("coalton" "coalton-asdf" "paiprolog" "arrows" "named-readtables")
   :serial t
-  :components ((:file    "package")       ; all defpackage declarations
-               (:file    "logic-engine")  ; gambol Prolog rules
-               (:file    "catalog")       ; Gen-I data
-               (:ct-file "types")         ; Coalton DSL — type model
-               (:file    "simulator")     ; CL battle engine (pokemon-sim/glue)
-               (:file    "repl")          ; interactive REPL
-               (:file    "tests")))       ; FiveAM suite
+  :components ((:file    "package")
+               (:file    "logic-engine")
+               (:file    "catalog")
+               (:ct-file "types")
+               (:file    "simulator")))
+
+(defsystem "pokemon-sim/test"
+  :description "FiveAM test suite for pokemon-sim"
+  :depends-on ("pokemon-sim" "fiveam")
+  :serial t
+  :components ((:file "tests")))
+
+(defsystem "pokemon-sim/perf"
+  :description "Performance regression suite for pokemon-sim"
+  :depends-on ("pokemon-sim" "trivial-benchmark" "fiveam")
+  :serial t
+  :components ((:file "perf")))

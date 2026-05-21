@@ -1,11 +1,15 @@
-;;;; types.ct — Coalton DSL type model
+;;;; types.ct — Coalton DSL: ADTs and battle computation
 ;;;;
-;;;; This is a :ct-file (compiled by coalton-asdf with isolated readtable).
-;;;; It defines only the data model: types, constructors, field accessors,
-;;;; and the PkmnType→String bridge for Prolog queries.
+;;;; Coalton owns:
+;;;;   - Type-safe ADTs: PkmnType, Status, Move, Pokemon, BattleOutcome
+;;;;   - All pure battle computation: damage formula, turn resolution,
+;;;;     battle loop, status DoT
+;;;;   - One controlled impure escape: Prolog multiplier lookup via
+;;;;     (lisp Fraction (kb atk-val def-val) ...) — explicit and isolated
 ;;;;
-;;;; No arithmetic involving division lives here — that belongs in the CL
-;;;; battle engine (simulator.lisp) where cl:floor is available directly.
+;;;; CL glue (simulator.lisp) owns only:
+;;;;   - plist→Coalton bridges (catalog data → battle values)
+;;;;   - make-pokemon-kb call and entry-point formatting
 
 (named-readtables:in-readtable coalton:coalton)
 
@@ -13,16 +17,16 @@
 
 (coalton-toplevel
 
-  ;;; ── Type taxonomy ─────────────────────────────────────────────────────────
+  ;;; ── Type taxonomy ────────────────────────────────────────────────────────
   (define-type PkmnType
     Normal Fire Water Grass Electric Ice Fighting Poison
     Ground Flying Psychic Bug Rock Ghost Dragon)
 
-  ;;; ── Status conditions ─────────────────────────────────────────────────────
+  ;;; ── Status conditions ────────────────────────────────────────────────────
   (define-type Status
     Healthy Poisoned Burned Paralyzed Asleep Frozen)
 
-  ;;; ── Move: name  type  base-power ──────────────────────────────────────────
+  ;;; ── Move: name  type  base-power ─────────────────────────────────────────
   (define-type Move
     (Move String PkmnType UFix))
 
@@ -37,8 +41,7 @@
     Draw
     (Ongoing Pokemon Pokemon))
 
-  ;;; ── PkmnType → String ─────────────────────────────────────────────────────
-  ;;; Returns uppercase string; CL glue interns into target package.
+  ;;; ── PkmnType → String bridge ──────────────────────────────────────────────
   (declare type->string (PkmnType -> String))
   (define (type->string t)
     (match t
@@ -54,38 +57,30 @@
   ;;; ── Field accessors ───────────────────────────────────────────────────────
   (declare pokemon-name   (Pokemon -> String))
   (define (pokemon-name   (Pokemon n _ _ _ _ _ _ _ _ _)) n)
-
   (declare pokemon-hp     (Pokemon -> UFix))
   (define (pokemon-hp     (Pokemon _ _ _ _ hp _ _ _ _ _)) hp)
-
   (declare pokemon-max-hp (Pokemon -> UFix))
   (define (pokemon-max-hp (Pokemon _ _ _ mhp _ _ _ _ _ _)) mhp)
-
   (declare pokemon-type1  (Pokemon -> PkmnType))
   (define (pokemon-type1  (Pokemon _ t _ _ _ _ _ _ _ _)) t)
-
   (declare pokemon-atk    (Pokemon -> UFix))
   (define (pokemon-atk    (Pokemon _ _ _ _ _ a _ _ _ _)) a)
-
   (declare pokemon-def    (Pokemon -> UFix))
   (define (pokemon-def    (Pokemon _ _ _ _ _ _ d _ _ _)) d)
-
   (declare pokemon-spc    (Pokemon -> UFix))
   (define (pokemon-spc    (Pokemon _ _ _ _ _ _ _ s _ _)) s)
-
   (declare pokemon-spd    (Pokemon -> UFix))
   (define (pokemon-spd    (Pokemon _ _ _ _ _ _ _ _ sp _)) sp)
-
   (declare pokemon-status (Pokemon -> Status))
   (define (pokemon-status (Pokemon _ _ _ _ _ _ _ _ _ st)) st)
-
   (declare move-type      (Move -> PkmnType))
   (define (move-type      (Move _ t _)) t)
-
   (declare move-power     (Move -> UFix))
   (define (move-power     (Move _ _ p)) p)
+  (declare move-name      (Move -> String))
+  (define (move-name      (Move n _ _)) n)
 
-  ;;; ── Predicate ─────────────────────────────────────────────────────────────
+  ;;; ── Predicates ────────────────────────────────────────────────────────────
   (declare fainted? (Pokemon -> Boolean))
   (define (fainted? p) (== (pokemon-hp p) 0))
 
@@ -94,30 +89,93 @@
   (define (take-damage (Pokemon nm t1 t2 mhp hp atk def spc spd st) dmg)
     (Pokemon nm t1 t2 mhp
              (if (> dmg hp) 0 (- hp dmg))
-             atk def spc spd st)))
+             atk def spc spd st))
 
-;;; ─── CL-callable constructor helpers ─────────────────────────────────────────
-;;; These Coalton functions are called from the CL glue layer via
-;;; call-coalton-function. They accept individual CL values and return the
-;;; corresponding Coalton ADT value.
-
-(coalton-toplevel
-
-  ;;; Build a Pokemon from 10 individual fields
+  ;;; ── Constructor helpers (called from CL bridge) ───────────────────────────
   (declare make-pokemon
            (String -> PkmnType -> UFix -> UFix -> UFix -> UFix -> UFix -> UFix
             -> Pokemon))
   (define (make-pokemon nm t1 mhp hp atk def spc spd)
     (Pokemon nm t1 None mhp hp atk def spc spd Healthy))
 
-  ;;; Build a Move from name, type, power
   (declare make-move (String -> PkmnType -> UFix -> Move))
-  (define (make-move nm typ pwr)
-    (Move nm typ pwr))
+  (define (make-move nm typ pwr) (Move nm typ pwr))
 
-  ;;; Outcome constructors
-  (declare make-victor (Pokemon -> BattleOutcome))
-  (define (make-victor p) (Victor p))
-
+  (declare make-victor  (Pokemon -> BattleOutcome))
+  (define  (make-victor p) (Victor p))
   (declare make-ongoing (Pokemon -> Pokemon -> BattleOutcome))
-  (define (make-ongoing p1 p2) (Ongoing p1 p2)))
+  (define  (make-ongoing p1 p2) (Ongoing p1 p2))
+
+  ;;; ── Status DoT ────────────────────────────────────────────────────────────
+  (declare status-dot (Pokemon -> UFix))
+  (define (status-dot p)
+    (match (pokemon-status p)
+      ((Poisoned) (max 1 (div (into (pokemon-hp p)) 8)))
+      ((Burned)   (max 1 (div (into (pokemon-hp p)) 16)))
+      (_          0)))
+
+  ;;; ── Apply end-of-turn status damage ──────────────────────────────────────
+  (declare apply-end-of-turn (Pokemon -> Pokemon))
+  (define (apply-end-of-turn p)
+    (let ((dot (status-dot p)))
+      (if (== dot 0) p (take-damage p dot))))
+
+  ;;; ── Damage calculation ────────────────────────────────────────────────────
+  ;;; Gen I formula: base = floor(atk * power / (50 * def)) + 2
+  ;;; Multiplier comes from the Prolog kb via a lisp escape.
+  ;;; kb is an opaque CL object (pokemon-logic::prolog-db).
+  ;;; The lisp escape is the ONLY point where Coalton touches Prolog.
+  (repr :native cl:t)
+  (define-type PrologDb)
+
+  (declare lookup-multiplier (PrologDb -> PkmnType -> PkmnType -> Fraction))
+  (define (lookup-multiplier kb atk-t def-t)
+    "Query the Prolog kb for the type multiplier as a CL rational.
+    Passes the PkmnType values directly into the lisp escape, converting
+    to keywords inside CL where the conversion is trivial."
+    (lisp Fraction (kb atk-t def-t)
+      (pokemon-logic:multiplier->ratio
+        (pokemon-logic:get-logic-multiplier
+          kb
+          (cl:intern (pokemon-sim::type->string atk-t) "KEYWORD")
+          (cl:intern (pokemon-sim::type->string def-t) "KEYWORD")))))
+
+  (declare calculate-damage (PrologDb -> Move -> Pokemon -> Pokemon -> UFix))
+  (define (calculate-damage kb move attacker defender)
+    (let ((power (move-power move))
+          (atk   (pokemon-atk attacker))
+          (def   (max 1 (pokemon-def defender)))
+          (mult  (lookup-multiplier kb (move-type move) (pokemon-type1 defender))))
+      (let ((base (+ (div (* (into atk) (into power)) (* 50 (into def))) 2)))
+        (the UFix (fromint (max 0 (floor (* (into base) mult))))))))
+
+  ;;; ── Single turn resolution ────────────────────────────────────────────────
+  ;;; Simultaneous damage model: both moves connect, then DoT applies.
+  (declare run-turn (PrologDb -> Pokemon -> Move -> Pokemon -> Move
+                     -> BattleOutcome))
+  (define (run-turn kb p1 m1 p2 m2)
+    (let ((d1 (calculate-damage kb m2 p2 p1))   ; damage TO p1 from m2
+          (d2 (calculate-damage kb m1 p1 p2)))  ; damage TO p2 from m1
+      (let ((p1* (apply-end-of-turn (take-damage p1 d1)))
+            (p2* (apply-end-of-turn (take-damage p2 d2))))
+        (cond
+          ((and (fainted? p1*) (fainted? p2*)) Draw)
+          ((fainted? p2*)                      (Victor p1*))
+          ((fainted? p1*)                      (Victor p2*))
+          (True                                (Ongoing p1* p2*))))))
+
+  ;;; ── Battle simulation loop ────────────────────────────────────────────────
+  (declare simulate-battle
+           (PrologDb -> Pokemon -> Move -> Pokemon -> Move -> IFix
+            -> BattleOutcome))
+  (define (simulate-battle kb p1 m1 p2 m2 max-turns)
+    (if (<= max-turns 0)
+        ;; Time limit: higher remaining HP wins
+        (cond ((> (pokemon-hp p1) (pokemon-hp p2)) (Victor p1))
+              ((> (pokemon-hp p2) (pokemon-hp p1)) (Victor p2))
+              (True Draw))
+        (match (run-turn kb p1 m1 p2 m2)
+          ((Ongoing np1 np2)
+           (simulate-battle kb np1 m1 np2 m2 (- max-turns 1)))
+          ((Victor winner) (Victor winner))
+          ((Draw) Draw)))))

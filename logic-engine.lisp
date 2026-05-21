@@ -190,6 +190,9 @@
                  (x-special special 1) (dire-hit crit 1) (guard-spec special-def 1)))
       (db-assert db `(item-boosts-stat ,(car r) ,(cadr r) ,(caddr r))))
 
+    ;; ── Catalog facts (pokemon, move, item, gym-party) ──────────────────────
+    (pokemon-catalog:assert-catalog-facts db)
+
     db))
 
 ;;;; ── Query API ───────────────────────────────────────────────────────────────
