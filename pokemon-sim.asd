@@ -6,13 +6,19 @@
   :depends-on ("coalton" "coalton-asdf" "paiprolog" "arrows" "named-readtables")
   :serial t
   :components ((:file    "package")
-               (:file    "logic-engine")   ; Prolog: type chart, items, team rules
-               (:file    "catalog")        ; Prolog: pokémon/move/item/trainer facts
-               (:ct-file "types")          ; Coalton: ADTs + battle computation
-               (:file    "simulator")))    ; CL: bridge, entry points
+               (:file    "logic-engine")
+               (:file    "catalog")
+               (:ct-file "types")
+               (:file    "simulator")))
 
 (defsystem "pokemon-sim/test"
   :description "FiveAM test suite for pokemon-sim"
   :depends-on ("pokemon-sim" "fiveam")
   :serial t
   :components ((:file "tests")))
+
+(defsystem "pokemon-sim/perf"
+  :description "Performance regression suite for pokemon-sim"
+  :depends-on ("pokemon-sim" "trivial-benchmark" "fiveam")
+  :serial t
+  :components ((:file "perf")))
