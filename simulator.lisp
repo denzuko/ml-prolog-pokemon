@@ -157,14 +157,14 @@
 (cl:defun run-simulation ()
   "Smoke test: Charizard (Flamethrower) vs Blastoise (Surf) at level 36."
   (cl:let* ((kb   (logic:make-pokemon-kb))
-             (c-pl (catalog:make-battle-mon "Charizard" 36
+             (c-pl (catalog:make-battle-mon kb "Charizard" 36
                      "Flamethrower" "Fire Blast" "Slash" "Hyper Beam"))
-             (b-pl (catalog:make-battle-mon "Blastoise" 36
+             (b-pl (catalog:make-battle-mon kb "Blastoise" 36
                      "Surf" "Hydro Pump" "Withdraw" "Body Slam"))
              (p1   (plist->pokemon c-pl))
              (p2   (plist->pokemon b-pl))
-             (m1   (catalog-move->coalton (catalog:find-move "Flamethrower")))
-             (m2   (catalog-move->coalton (catalog:find-move "Surf")))
+             (m1   (catalog-move->coalton (catalog:find-move kb "Flamethrower")))
+             (m2   (catalog-move->coalton (catalog:find-move kb "Surf")))
              (res  (simulate-battle kb p1 m1 p2 m2 20)))
     (cl:format cl:t "~%=== Smoke test: ~A vs ~A ===~%"
                (cl:getf c-pl :name) (cl:getf b-pl :name))
@@ -182,14 +182,14 @@
   GYM-NAME: :brock :misty :lt-surge :erika :koga :sabrina :blaine :giovanni"
   (cl:let* ((kb    (logic:make-pokemon-kb))
              (party (cl:ecase gym-name
-                      (:brock    (catalog:brock-party))
-                      (:misty    (catalog:misty-party))
-                      (:lt-surge (catalog:lt-surge-party))
-                      (:erika    (catalog:erika-party))
-                      (:koga     (catalog:koga-party))
-                      (:sabrina  (catalog:sabrina-party))
-                      (:blaine   (catalog:blaine-party))
-                      (:giovanni (catalog:giovanni-party))))
+                      (:brock    (catalog:brock-party kb))
+                      (:misty    (catalog:misty-party kb))
+                      (:lt-surge (catalog:lt-surge-party kb))
+                      (:erika    (catalog:erika-party kb))
+                      (:koga     (catalog:koga-party kb))
+                      (:sabrina  (catalog:sabrina-party kb))
+                      (:blaine   (catalog:blaine-party kb))
+                      (:giovanni (catalog:giovanni-party kb))))
              (etypes (cl:mapcar
                        (cl:lambda (p)
                          (cl:intern

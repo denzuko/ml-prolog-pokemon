@@ -171,37 +171,37 @@
 ;;;; ─── Catalog: species ───────────────────────────────────────────────────────
 
 (fiveam:test pikachu-exists
-  (fiveam:is (not (null (catalog:find-pokemon "Pikachu")))))
+  (fiveam:is (not (null (catalog:find-pokemon (kb) "Pikachu")))))
 
 (fiveam:test pikachu-electric
-  (fiveam:is (eq :electric (catalog:species-type1 (catalog:find-pokemon "Pikachu")))))
+  (fiveam:is (eq :electric (catalog:species-type1 (catalog:find-pokemon (kb) "Pikachu")))))
 
 (fiveam:test mewtwo-exists
-  (fiveam:is (not (null (catalog:find-pokemon "Mewtwo")))))
+  (fiveam:is (not (null (catalog:find-pokemon (kb) "Mewtwo")))))
 
 (fiveam:test exactly-151-pokemon
-  (fiveam:is (= 151 (length catalog:*gen1-yellow-roster*))))
+  (fiveam:is (= 151 (length (catalog:all-pokemon (kb))))))
 
 ;;;; ─── Catalog: moves ─────────────────────────────────────────────────────────
 
 (fiveam:test thunderbolt-exists-and-correct
-  (let ((m (catalog:find-move "Thunderbolt")))
+  (let ((m (catalog:find-move (kb) "Thunderbolt")))
     (fiveam:is (not (null m)))
     (fiveam:is (eq  :electric (catalog:move-type m)))
     (fiveam:is (=   95 (catalog:move-power m)))))
 
 (fiveam:test surf-exists
-  (fiveam:is (not (null (catalog:find-move "Surf")))))
+  (fiveam:is (not (null (catalog:find-move (kb) "Surf")))))
 
 ;;;; ─── Catalog: items ─────────────────────────────────────────────────────────
 
 (fiveam:test potion-in-catalog
-  (fiveam:is (not (null (catalog:find-item "Potion")))))
+  (fiveam:is (not (null (catalog:find-item (kb) "Potion")))))
 
 ;;;; ─── Catalog: make-battle-mon ──────────────────────────────────────────────
 
 (fiveam:test make-battle-mon-pikachu
-  (let ((p (catalog:make-battle-mon "Pikachu" 5 "Thunder Shock" "Growl")))
+  (let ((p (catalog:make-battle-mon (kb) "Pikachu" 5 "Thunder Shock" "Growl")))
     (fiveam:is (string= "Pikachu" (getf p :name)))
     (fiveam:is (> (getf p :hp) 0))
     (fiveam:is (= 2 (length (getf p :moves))))))
@@ -209,21 +209,21 @@
 ;;;; ─── Catalog: gym parties ───────────────────────────────────────────────────
 
 (fiveam:test brock-party-2
-  (fiveam:is (= 2 (length (catalog:brock-party)))))
+  (fiveam:is (= 2 (length (catalog:brock-party (kb))))))
 
 (fiveam:test misty-party-2
-  (fiveam:is (= 2 (length (catalog:misty-party)))))
+  (fiveam:is (= 2 (length (catalog:misty-party (kb))))))
 
 (fiveam:test lt-surge-has-raichu
-  (let ((p (catalog:lt-surge-party)))
+  (let ((p (catalog:lt-surge-party (kb))))
     (fiveam:is (= 1 (length p)))
     (fiveam:is (string= "Raichu" (getf (first p) :name)))))
 
 (fiveam:test erika-party-3
-  (fiveam:is (= 3 (length (catalog:erika-party)))))
+  (fiveam:is (= 3 (length (catalog:erika-party (kb))))))
 
 (fiveam:test giovanni-party-5
-  (fiveam:is (= 5 (length (catalog:giovanni-party)))))
+  (fiveam:is (= 5 (length (catalog:giovanni-party (kb))))))
 
 ;;;; ─── Runner ─────────────────────────────────────────────────────────────────
 
