@@ -484,7 +484,61 @@
          (2 "Dugtrio"   42 "Scratch"       "Dig"         "Earthquake" :none)
          (3 "Nidoqueen" 44 "Tackle"        "Earthquake"  "Body Slam"  "Toxic")
          (4 "Nidoking"  45 "Tackle"        "Earthquake"  "Toxic"      "Hyper Beam")
-         (5 "Rhydon"    50 "Horn Attack"   "Earthquake"  "Rock Slide" "Hyper Beam"))))
+         (5 "Rhydon"    50 "Horn Attack"   "Earthquake"  "Rock Slide" "Hyper Beam"))
+
+        ;; ── Elite Four ────────────────────────────────────────────────────────
+        (:lorelei
+         (1 "Dewgong"   54 "Surf"          "Ice Beam"    "Blizzard"   "Body Slam")
+         (2 "Cloyster"  53 "Surf"          "Ice Beam"    "Blizzard"   "Hyper Beam")
+         (3 "Slowbro"   54 "Surf"          "Psychic"     "Ice Beam"   "Amnesia")
+         (4 "Jynx"      56 "Ice Beam"      "Blizzard"    "Psychic"    "Sing")
+         (5 "Lapras"    60 "Surf"          "Ice Beam"    "Blizzard"   "Body Slam"))
+        (:bruno
+         (1 "Onix"      53 "Tackle"        "Screech"     "Rock Throw" "Bind")
+         (2 "Hitmonchan" 55 "Comet Punch"  "Karate Chop" "Seismic Toss" "Hyper Beam")
+         (3 "Hitmonlee" 55 "Double Kick"   "Low Kick"    "Seismic Toss" "Hyper Beam")
+         (4 "Onix"      56 "Tackle"        "Screech"     "Rock Throw" "Earthquake")
+         (5 "Machamp"   58 "Karate Chop"   "Seismic Toss" "Submission" "Hyper Beam"))
+        (:agatha
+         (1 "Gengar"    54 "Night Shade"   "Confuse Ray" "Toxic"      "Hyper Beam")
+         (2 "Haunter"   54 "Night Shade"   "Confuse Ray" "Toxic"      "Lick")
+         (3 "Gengar"    58 "Night Shade"   "Confuse Ray" "Toxic"      "Hyper Beam")
+         (4 "Arbok"     58 "Acid"          "Toxic"       "Wrap"       "Body Slam")
+         (5 "Gengar"    60 "Night Shade"   "Confuse Ray" "Toxic"      "Hyper Beam"))
+        (:lance
+         (1 "Gyarados"  58 "Surf"          "Body Slam"   "Bite"       "Hyper Beam")
+         (2 "Dragonair" 56 "Wrap"          "Slam"        "Agility"    "Hyper Beam")
+         (3 "Dragonair" 56 "Wrap"          "Slam"        "Agility"    "Hyper Beam")
+         (4 "Aerodactyl" 60 "Wing Attack"  "Rock Slide"  "Hyper Beam" "Agility")
+         (5 "Dragonite" 62 "Slam"          "Hyper Beam"  "Blizzard"   "Agility"))
+
+        ;; ── Champion Gary (Squirtle start — hardest variant) ─────────────────
+        (:gary
+         (1 "Pidgeot"   61 "Wing Attack"   "Agility"     "Hyper Beam" "Gust")
+         (2 "Alakazam"  59 "Psychic"       "Recover"     "Psybeam"    "Hyper Beam")
+         (3 "Rhydon"    61 "Earthquake"    "Rock Slide"  "Horn Attack" "Hyper Beam")
+         (4 "Arcanine"  61 "Fire Blast"    "Flamethrower" "Body Slam"  "Hyper Beam")
+         (5 "Exeggutor" 61 "Solar Beam"    "Psychic"     "Hyper Beam" "Egg Bomb")
+         (6 "Blastoise" 65 "Surf"          "Hydro Pump"  "Withdraw"   "Hyper Beam"))
+
+        ;; ── Route / dungeon rivals ────────────────────────────────────────────
+        ;; Gary Route 22 (pre-Boulder Badge)
+        (:gary-route22-early
+         (1 "Pidgey"    9  "Gust"          "Tackle"      :none        :none)
+         (2 "Squirtle"  9  "Tackle"        "Tail Whip"   :none        :none))
+        ;; Gary SS Anne (mid-game)
+        (:gary-ss-anne
+         (1 "Pidgeotto" 18 "Gust"          "Wing Attack" :none        :none)
+         (2 "Raticate"  19 "Quick Attack"  "Bite"        :none        :none)
+         (3 "Kadabra"   18 "Confusion"     "Psybeam"     :none        :none)
+         (4 "Wartortle" 20 "Water Gun"     "Withdraw"    :none        :none))
+        ;; Gary Silph Co
+        (:gary-silph
+         (1 "Pidgeotto" 37 "Wing Attack"   "Agility"     "Hyper Beam" :none)
+         (2 "Gyarados"  38 "Surf"          "Body Slam"   "Bite"       :none)
+         (3 "Growlithe" 35 "Flamethrower"  "Bite"        :none        :none)
+         (4 "Alakazam"  38 "Psychic"       "Recover"     :none        :none)
+         (5 "Wartortle" 40 "Surf"          "Withdraw"    "Hydro Pump" :none))))
       (let ((gym (car party)))
         (dolist (slot (cdr party))
           (apply #'pf 'gym-party gym slot))))
@@ -593,7 +647,23 @@
 (defun starter-pikachu (kb)
   (make-battle-mon kb "Pikachu" 5 "Thunder Shock" "Growl"))
 
+;; Elite Four
+(defun lorelei-party  (kb) (gym-party kb :lorelei))
+(defun bruno-party    (kb) (gym-party kb :bruno))
+(defun agatha-party   (kb) (gym-party kb :agatha))
+(defun lance-party    (kb) (gym-party kb :lance))
+;; Champion
+(defun gary-party     (kb) (gym-party kb :gary))
+;; Route rivals
+(defun gary-route22-early-party (kb) (gym-party kb :gary-route22-early))
+(defun gary-ss-anne-party       (kb) (gym-party kb :gary-ss-anne))
+(defun gary-silph-party         (kb) (gym-party kb :gary-silph))
+
 (defun all-pokemon (kb)
   "Return list of all 151 species name strings."
   (mapcar (lambda (b) (pokemon-logic::%lookup '?name b))
           (pokemon-logic::db-prove-all kb '(pokemon ?name ?num ?t1 ?t2 ?hp ?atk ?def ?spc ?spd))))
+
+;;; ── Extended trainer catalog ─────────────────────────────────────────────────
+;;; Called from assert-catalog-facts via the same (pf 'gym-party ...) pattern.
+;;; These are appended here; assert-catalog-facts already iterates the full list.

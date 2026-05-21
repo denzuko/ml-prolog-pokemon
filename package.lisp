@@ -35,6 +35,11 @@
    #:gym-party
    #:brock-party #:misty-party #:lt-surge-party #:erika-party
    #:koga-party   #:sabrina-party #:blaine-party  #:giovanni-party
+   ;; Elite Four + Champion
+   #:lorelei-party #:bruno-party #:agatha-party #:lance-party
+   #:gary-party
+   ;; Route rivals
+   #:gary-route22-early-party #:gary-ss-anne-party #:gary-silph-party
    #:starter-pikachu))
 
 ;;; ── Coalton type layer ───────────────────────────────────────────────────────
@@ -51,7 +56,13 @@
    #:pokemon-atk  #:pokemon-def #:pokemon-spc   #:pokemon-spd
    #:pokemon-status #:move-type #:move-power
    #:fainted? #:take-damage
-   #:make-pokemon #:make-move #:make-victor #:make-ongoing))
+   #:make-pokemon #:make-move #:make-victor #:make-ongoing
+   ;; Battle computation (fully Coalton)
+   #:PrologDb
+   #:lookup-multiplier
+   #:calculate-damage
+   #:apply-end-of-turn #:status-dot
+   #:run-turn #:simulate-battle))
 
 ;;; ── CL glue layer ────────────────────────────────────────────────────────────
 (defpackage #:pokemon-sim/glue
@@ -70,7 +81,6 @@
    #:plist->pokemon
    #:catalog-move->coalton
    #:status-dot #:apply-end-of-turn
-   #:calculate-damage #:run-turn #:simulate-battle
    #:run-simulation #:run-badge-battle))
 
 ;;; ── Test suite ───────────────────────────────────────────────────────────────

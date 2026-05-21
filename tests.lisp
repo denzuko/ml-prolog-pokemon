@@ -225,6 +225,45 @@
 (fiveam:test giovanni-party-5
   (fiveam:is (= 5 (length (catalog:giovanni-party (kb))))))
 
+(fiveam:test lorelei-party-5
+  (fiveam:is (= 5 (length (catalog:lorelei-party (kb))))))
+
+(fiveam:test lance-party-5
+  (fiveam:is (= 5 (length (catalog:lance-party (kb))))))
+
+(fiveam:test gary-party-6
+  "Champion Gary has 6 Pokémon."
+  (fiveam:is (= 6 (length (catalog:gary-party (kb))))))
+
+(fiveam:test gary-party-ends-blastoise
+  "Gary's ace is Blastoise (Squirtle start variant)."
+  (let ((p (catalog:gary-party (kb))))
+    (fiveam:is (string= "Blastoise"
+                        (getf (car (last p)) :name)))))
+
+(fiveam:test simulate-battle-blastoise-beats-charizard
+  "Water beats Fire — Blastoise should win the smoke test."
+  (let* ((kb   (kb))
+         (c-pl (catalog:make-battle-mon kb "Charizard" 36
+                 "Flamethrower" "Fire Blast" "Slash" "Hyper Beam"))
+         (b-pl (catalog:make-battle-mon kb "Blastoise" 36
+                 "Surf" "Hydro Pump" "Withdraw" "Body Slam"))
+         (p1   (pokemon-sim/glue:plist->pokemon c-pl))
+         (p2   (pokemon-sim/glue:plist->pokemon b-pl))
+         (m1   (pokemon-sim/glue:catalog-move->coalton
+                 (catalog:find-move kb "Flamethrower")))
+         (m2   (pokemon-sim/glue:catalog-move->coalton
+                 (catalog:find-move kb "Surf")))
+         (res  (pokemon-sim:simulate-battle kb p1 m1 p2 m2 20)))
+    ;; Extract winner name before any fiveam assertion to avoid scope issues
+    (let ((winner-name
+            (pokemon-sim/glue:match-outcome res
+              :winner w
+              :victor  (pokemon-sim:pokemon-name w)
+              :draw    nil
+              :ongoing nil)))
+      (fiveam:is (string= "Blastoise" winner-name)))))
+
 ;;;; ─── Runner ─────────────────────────────────────────────────────────────────
 
 (defun run-tests ()
