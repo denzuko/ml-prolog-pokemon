@@ -1,0 +1,4 @@
+*.fasl
+*.fas
+*.x86f
+*.sparcf
