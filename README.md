@@ -212,6 +212,17 @@ rules and all 151 Pokémon/move/item/trainer facts.
 ; → (:NAME "Pikachu" :HP 100 :MAX-HP 100 :STATUS NIL)
 ```
 
+### Run the performance regression suite
+
+```lisp
+(ql:quickload "pokemon-sim/perf")
+(pokemon-sim/perf:run-perf)
+```
+
+Each test asserts a median wall-clock budget (generous, to catch catastrophic
+regressions without GC-jitter false-positives). Throughput floor is 10
+battles/second on any supported platform.
+
 ### Run the test suite
 
 ```lisp
@@ -324,6 +335,7 @@ catalog.lisp          Gen-I Yellow data as Prolog facts + query API
 types.ct              Coalton ADTs + battle computation
 simulator.lisp        CL bridge (~80 lines) + entry points
 tests.lisp            65 FiveAM tests (pokemon-sim/test system)
+perf.lisp             11 performance regression tests (pokemon-sim/perf system)
 ```
 
 ---
