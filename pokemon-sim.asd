@@ -22,3 +22,9 @@
   :depends-on ("pokemon-sim" "trivial-benchmark" "fiveam")
   :serial t
   :components ((:file "perf")))
+
+(defsystem "pokemon-sim/perf"
+  :description "Performance regression suite for pokemon-sim"
+  :depends-on ("pokemon-sim" "fiveam")
+  :serial t
+  :components ((:file "perf")))

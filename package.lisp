@@ -90,3 +90,13 @@
    (#:logic   #:pokemon-logic)
    (#:catalog #:pokemon-catalog))
   (:export #:run-tests #:pokemon-suite))
+
+;;; ── Performance regression suite ────────────────────────────────────────────
+(defpackage #:pokemon-sim/perf
+  (:use #:cl #:fiveam)
+  (:local-nicknames
+   (#:logic #:pokemon-logic)
+   (#:cat   #:pokemon-catalog)
+   (#:sim   #:pokemon-sim)
+   (#:glue  #:pokemon-sim/glue))
+  (:export #:run-perf #:perf-suite))
