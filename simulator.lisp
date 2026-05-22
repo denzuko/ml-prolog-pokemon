@@ -9,6 +9,42 @@
 
 (in-package #:pokemon-sim/glue)
 
+;;;; ── PkmnType ordinal → Prolog keyword lookup ──────────────────────────────
+;;;; REPR :ENUM makes PkmnType variants fixnum ordinals in the CL layer.
+;;;; This vector maps ordinal → keyword, matching the define-type order in
+;;;; types.ct exactly.  lookup-multiplier indexes it with a single svref —
+;;;; no type->string, no intern on the damage hot path.
+;;;; (Per u/stylewarning, HRL Laboratories — see types.ct REPR note.)
+(cl:defvar *type-keywords*
+  ;; Maps REPR :ENUM symbols (POKEMON-SIM::PKMNTYPE/*) → Prolog keywords.
+  ;; load-time-value ensures this runs after types.ct has been loaded,
+  ;; so all PKMNTYPE/* symbols exist.  Used by lookup-multiplier: one
+  ;; gethash per damage call replaces the old type->string + intern pattern.
+  (cl:load-time-value
+    (cl:let ((ht (cl:make-hash-table :test 'cl:eq :size 17)))
+      (cl:loop for (name kw) in
+        '(("PKMNTYPE/NORMAL"   :normal)
+          ("PKMNTYPE/FIRE"     :fire)
+          ("PKMNTYPE/WATER"    :water)
+          ("PKMNTYPE/GRASS"    :grass)
+          ("PKMNTYPE/ELECTRIC" :electric)
+          ("PKMNTYPE/ICE"      :ice)
+          ("PKMNTYPE/FIGHTING" :fighting)
+          ("PKMNTYPE/POISON"   :poison)
+          ("PKMNTYPE/GROUND"   :ground)
+          ("PKMNTYPE/FLYING"   :flying)
+          ("PKMNTYPE/PSYCHIC"  :psychic)
+          ("PKMNTYPE/BUG"      :bug)
+          ("PKMNTYPE/ROCK"     :rock)
+          ("PKMNTYPE/GHOST"    :ghost)
+          ("PKMNTYPE/DRAGON"   :dragon))
+        do (cl:setf (cl:gethash
+                      (cl:find-symbol name (cl:find-package "POKEMON-SIM"))
+                      ht)
+                    kw))
+      ht)
+    cl:t))
+
 ;;;; ── keyword → Coalton PkmnType ──────────────────────────────────────────────
 
 (cl:defun kw->coalton-type (kw)
