@@ -5,10 +5,19 @@
 ;;;;   - All pure battle computation: damage formula, turn resolution,
 ;;;;     battle loop, status DoT
 ;;;;   - One controlled impure escape: Prolog multiplier lookup via
-;;;;     (lisp Fraction (kb atk-val def-val) ...) — explicit and isolated
+;;;;     (lisp Fraction (kb atk-t def-t) ...) — explicit and isolated
 ;;;;
-;;;; CL glue (simulator.lisp) owns only:
-;;;;   - plist→Coalton bridges (catalog data → battle values)
+;;;; REPR :ENUM note (per u/stylewarning, HRL Laboratories):
+;;;;   PkmnType and Status use REPR :ENUM so variants are represented as
+;;;;   package-qualified symbols (e.g. PKMNTYPE/FIRE) rather than
+;;;;   heap-allocated structs.  A precomputed hash table *type-keywords*
+;;;;   maps those symbols → Prolog keywords once at load time (defined in
+;;;;   simulator.lisp), replacing the old type->string + intern hot-path
+;;;;   with a single gethash.
+;;;;
+;;;; CL glue (simulator.lisp) owns:
+;;;;   - *type-keywords* vector  (ordinal → :keyword, built once)
+;;;;   - plist→Coalton bridges
 ;;;;   - make-pokemon-kb call and entry-point formatting
 
 (named-readtables:in-readtable coalton:coalton)
@@ -17,12 +26,18 @@
 
 (coalton-toplevel
 
-  ;;; ── Type taxonomy ────────────────────────────────────────────────────────
+  ;;; ── Type taxonomy ─────────────────────────────────────────────────────────
+  ;;; REPR :ENUM — each constructor is a fixnum ordinal at runtime.
+  ;;; Ordinal order must match *type-keywords* in simulator.lisp exactly:
+  ;;; Normal=0 Fire=1 Water=2 Grass=3 Electric=4 Ice=5 Fighting=6 Poison=7
+  ;;; Ground=8 Flying=9 Psychic=10 Bug=11 Rock=12 Ghost=13 Dragon=14
+  (repr :enum)
   (define-type PkmnType
     Normal Fire Water Grass Electric Ice Fighting Poison
     Ground Flying Psychic Bug Rock Ghost Dragon)
 
   ;;; ── Status conditions ────────────────────────────────────────────────────
+  (repr :enum)
   (define-type Status
     Healthy Poisoned Burned Paralyzed Asleep Frozen)
 
@@ -40,19 +55,6 @@
     (Victor Pokemon)
     Draw
     (Ongoing Pokemon Pokemon))
-
-  ;;; ── PkmnType → String bridge ──────────────────────────────────────────────
-  (declare type->string (PkmnType -> String))
-  (define (type->string t)
-    (match t
-      ((Normal)   "NORMAL")   ((Fire)     "FIRE")
-      ((Water)    "WATER")    ((Grass)    "GRASS")
-      ((Electric) "ELECTRIC") ((Ice)      "ICE")
-      ((Fighting) "FIGHTING") ((Poison)   "POISON")
-      ((Ground)   "GROUND")   ((Flying)   "FLYING")
-      ((Psychic)  "PSYCHIC")  ((Bug)      "BUG")
-      ((Rock)     "ROCK")     ((Ghost)    "GHOST")
-      ((Dragon)   "DRAGON")))
 
   ;;; ── Field accessors ───────────────────────────────────────────────────────
   (declare pokemon-name   (Pokemon -> String))
@@ -120,25 +122,26 @@
     (let ((dot (status-dot p)))
       (if (== dot 0) p (take-damage p dot))))
 
-  ;;; ── Damage calculation ────────────────────────────────────────────────────
-  ;;; Gen I formula: base = floor(atk * power / (50 * def)) + 2
-  ;;; Multiplier comes from the Prolog kb via a lisp escape.
-  ;;; kb is an opaque CL object (pokemon-logic::prolog-db).
-  ;;; The lisp escape is the ONLY point where Coalton touches Prolog.
+  ;;; ── Opaque Prolog db handle ───────────────────────────────────────────────
   (repr :native cl:t)
   (define-type PrologDb)
 
+  ;;; ── Damage calculation ────────────────────────────────────────────────────
+  ;;; Gen I formula: base = floor(atk * power / (50 * def)) + 2
+  ;;;
+  ;;; lookup-multiplier: With REPR :ENUM, PkmnType values are fixnum ordinals
+  ;;; inside the lisp escape.  We index into *type-keywords* (a simple-vector
+  ;;; built once in simulator.lisp) to get the Prolog keyword — one svref per
+  ;;; call, no string allocation, no intern.  This replaces the original
+  ;;; type->string + intern pattern identified as the hot-path bottleneck.
   (declare lookup-multiplier (PrologDb -> PkmnType -> PkmnType -> Fraction))
   (define (lookup-multiplier kb atk-t def-t)
-    "Query the Prolog kb for the type multiplier as a CL rational.
-    Passes the PkmnType values directly into the lisp escape, converting
-    to keywords inside CL where the conversion is trivial."
     (lisp Fraction (kb atk-t def-t)
       (pokemon-logic:multiplier->ratio
         (pokemon-logic:get-logic-multiplier
           kb
-          (cl:intern (pokemon-sim::type->string atk-t) "KEYWORD")
-          (cl:intern (pokemon-sim::type->string def-t) "KEYWORD")))))
+          (cl:gethash atk-t pokemon-sim/glue::*type-keywords*)
+          (cl:gethash def-t pokemon-sim/glue::*type-keywords*)))))
 
   (declare calculate-damage (PrologDb -> Move -> Pokemon -> Pokemon -> UFix))
   (define (calculate-damage kb move attacker defender)
@@ -150,12 +153,11 @@
         (the UFix (fromint (max 0 (floor (* (into base) mult))))))))
 
   ;;; ── Single turn resolution ────────────────────────────────────────────────
-  ;;; Simultaneous damage model: both moves connect, then DoT applies.
   (declare run-turn (PrologDb -> Pokemon -> Move -> Pokemon -> Move
                      -> BattleOutcome))
   (define (run-turn kb p1 m1 p2 m2)
-    (let ((d1 (calculate-damage kb m2 p2 p1))   ; damage TO p1 from m2
-          (d2 (calculate-damage kb m1 p1 p2)))  ; damage TO p2 from m1
+    (let ((d1 (calculate-damage kb m2 p2 p1))
+          (d2 (calculate-damage kb m1 p1 p2)))
       (let ((p1* (apply-end-of-turn (take-damage p1 d1)))
             (p2* (apply-end-of-turn (take-damage p2 d2))))
         (cond
@@ -170,7 +172,6 @@
             -> BattleOutcome))
   (define (simulate-battle kb p1 m1 p2 m2 max-turns)
     (if (<= max-turns 0)
-        ;; Time limit: higher remaining HP wins
         (cond ((> (pokemon-hp p1) (pokemon-hp p2)) (Victor p1))
               ((> (pokemon-hp p2) (pokemon-hp p1)) (Victor p2))
               (True Draw))
