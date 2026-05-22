@@ -1,0 +1,19 @@
+# CODEOWNERS
+* @denzuko
+
+# Core library
+logic-engine.lisp  @denzuko
+catalog.lisp       @denzuko
+types.ct           @denzuko
+simulator.lisp     @denzuko
+package.lisp       @denzuko
+pokemon-sim.asd    @denzuko
+
+# Test and perf
+tests.lisp         @denzuko
+perf.lisp          @denzuko
+
+# Documentation
+README.md          @denzuko
+CLAUDE.md          @denzuko
+DIAGRAM.md         @denzuko
