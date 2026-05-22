@@ -1,5 +1,14 @@
 # ml-prolog-pokemon
 
+[![Tests](https://img.shields.io/badge/tests-65%2F65-brightgreen)](https://github.com/denzuko/ml-prolog-pokemon)
+[![Perf](https://img.shields.io/badge/perf-11%2F11-brightgreen)](https://github.com/denzuko/ml-prolog-pokemon)
+[![License](https://img.shields.io/badge/license-BSD--2--Clause-blue)](LICENSE.txt)
+[![SBCL](https://img.shields.io/badge/runtime-SBCL%202.x-orange)](http://www.sbcl.org/)
+[![Coalton](https://img.shields.io/badge/DSL-Coalton-purple)](https://github.com/coalton-lang/coalton)
+[![SBOM](https://img.shields.io/badge/SBOM-CycloneDX%201.6-informational)](sbom.cdx.json)
+[![ORCID](https://img.shields.io/badge/ORCID-0009--0001--0066--4646-a6ce39)](https://orcid.org/0009-0001-0066-4646)
+
+
 A Gen-I Pokémon Yellow battle simulator built as a domain exercise in
 multi-paradigm architecture: **Prolog** for rules and knowledge,
 **Coalton** (ML-style types) for typed battle computation, and

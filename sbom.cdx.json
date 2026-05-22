@@ -1,0 +1,145 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.6",
+  "serialNumber": "urn:uuid:016dd6e5-472c-4f41-ba47-a0db905d6aee",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-05-22T00:00:00Z",
+    "component": {
+      "type": "library",
+      "name": "ml-prolog-pokemon",
+      "version": "0.2.0",
+      "purl": "pkg:generic/ml-prolog-pokemon@0.2.0",
+      "bom-ref": "pkg:generic/ml-prolog-pokemon@0.2.0",
+      "licenses": [{ "license": { "id": "BSD-2-Clause" } }]
+    },
+    "authors": [{ "name": "Dwight Spencer", "email": "denzuko@dapla.net" }],
+    "tools": {
+      "components": [{
+        "type": "application",
+        "name": "manual-analysis",
+        "version": "1.0",
+        "description": "Manual dependency review + Quicklisp dist inspection"
+      }]
+    }
+  },
+  "components": [
+    {
+      "type": "library",
+      "name": "coalton",
+      "version": "20260101",
+      "purl": "pkg:quicklisp/coalton@20260101",
+      "bom-ref": "pkg:quicklisp/coalton@20260101",
+      "description": "ML-style type system DSL for Common Lisp (SBCL-only)",
+      "licenses": [{ "license": { "id": "MIT" } }],
+      "externalReferences": [{
+        "type": "vcs",
+        "url": "https://github.com/coalton-lang/coalton"
+      }]
+    },
+    {
+      "type": "library",
+      "name": "paiprolog",
+      "version": "20180228",
+      "purl": "pkg:quicklisp/paiprolog@20180228",
+      "bom-ref": "pkg:quicklisp/paiprolog@20180228",
+      "description": "Peter Norvig PAIP Prolog implementation for Common Lisp",
+      "licenses": [{ "license": { "name": "Public Domain" } }],
+      "externalReferences": [{
+        "type": "vcs",
+        "url": "https://github.com/norvig/paip-lisp"
+      }]
+    },
+    {
+      "type": "library",
+      "name": "fiveam",
+      "version": "1.4.2",
+      "purl": "pkg:quicklisp/fiveam@1.4.2",
+      "bom-ref": "pkg:quicklisp/fiveam@1.4.2",
+      "description": "Common Lisp test framework",
+      "licenses": [{ "license": { "id": "BSD-2-Clause" } }],
+      "externalReferences": [{
+        "type": "vcs",
+        "url": "https://github.com/sionescu/fiveam"
+      }]
+    },
+    {
+      "type": "library",
+      "name": "arrows",
+      "version": "0.2.0",
+      "purl": "pkg:quicklisp/arrows@0.2.0",
+      "bom-ref": "pkg:quicklisp/arrows@0.2.0",
+      "description": "Threading macros for Common Lisp",
+      "licenses": [{ "license": { "id": "MIT" } }],
+      "externalReferences": [{
+        "type": "vcs",
+        "url": "https://gitlab.com/Harleqin/arrows"
+      }]
+    },
+    {
+      "type": "library",
+      "name": "named-readtables",
+      "version": "0.9",
+      "purl": "pkg:quicklisp/named-readtables@0.9",
+      "bom-ref": "pkg:quicklisp/named-readtables@0.9",
+      "description": "Named readtable management for Common Lisp",
+      "licenses": [{ "license": { "id": "MIT" } }],
+      "externalReferences": [{
+        "type": "vcs",
+        "url": "https://github.com/melisgl/named-readtables"
+      }]
+    },
+    {
+      "type": "library",
+      "name": "cl-gambol",
+      "version": "git",
+      "purl": "pkg:github/wmannis/cl-gambol@main",
+      "bom-ref": "pkg:github/wmannis/cl-gambol@main",
+      "description": "Gambol Prolog interpreter for Common Lisp (ASD dep; not used at runtime — TCO bug in SBCL 2.x headless)",
+      "licenses": [{ "license": { "name": "Unknown — inspect source" } }],
+      "externalReferences": [{
+        "type": "vcs",
+        "url": "https://github.com/wmannis/cl-gambol"
+      }]
+    },
+    {
+      "type": "platform",
+      "name": "SBCL",
+      "version": "2.x",
+      "purl": "pkg:generic/sbcl@2.x",
+      "bom-ref": "pkg:generic/sbcl@2.x",
+      "description": "Steel Bank Common Lisp — required runtime (Coalton is SBCL-only)",
+      "licenses": [{ "license": { "name": "MIT and Public Domain" } }],
+      "externalReferences": [{
+        "type": "website",
+        "url": "http://www.sbcl.org/"
+      }]
+    }
+  ],
+  "dependencies": [
+    {
+      "ref": "pkg:generic/ml-prolog-pokemon@0.2.0",
+      "dependsOn": [
+        "pkg:quicklisp/coalton@20260101",
+        "pkg:quicklisp/paiprolog@20180228",
+        "pkg:quicklisp/arrows@0.2.0",
+        "pkg:quicklisp/named-readtables@0.9",
+        "pkg:github/wmannis/cl-gambol@main"
+      ]
+    },
+    {
+      "ref": "pkg:generic/ml-prolog-pokemon@0.2.0#test",
+      "dependsOn": [
+        "pkg:generic/ml-prolog-pokemon@0.2.0",
+        "pkg:quicklisp/fiveam@1.4.2"
+      ]
+    },
+    {
+      "ref": "pkg:generic/ml-prolog-pokemon@0.2.0#perf",
+      "dependsOn": [
+        "pkg:generic/ml-prolog-pokemon@0.2.0",
+        "pkg:quicklisp/fiveam@1.4.2"
+      ]
+    }
+  ]
+}

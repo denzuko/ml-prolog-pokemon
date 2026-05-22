@@ -1,0 +1,84 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Documents/CommitteeSpecifications/2.1.0/sarif-schema-2.1.0.json",
+  "runs": [{
+    "tool": {
+      "driver": {
+        "name": "manual-review",
+        "version": "1.0.0",
+        "informationUri": "https://github.com/denzuko/ml-prolog-pokemon",
+        "rules": [
+          {
+            "id": "CL001",
+            "name": "GlobalMutableState",
+            "shortDescription": { "text": "Global mutable special variable" },
+            "fullDescription": { "text": "Defvar/defparameter at file scope creates mutable global state that may cause test interference or threading issues." },
+            "defaultConfiguration": { "level": "note" }
+          },
+          {
+            "id": "CL002",
+            "name": "CoaltonLispEscape",
+            "shortDescription": { "text": "Coalton lisp escape" },
+            "fullDescription": { "text": "A (lisp ...) escape in Coalton breaks the type system boundary. Each use must be documented." },
+            "defaultConfiguration": { "level": "note" }
+          },
+          {
+            "id": "CL003",
+            "name": "UndocumentedPrologFact",
+            "shortDescription": { "text": "Prolog fact without schema comment" },
+            "fullDescription": { "text": "Prolog facts should have a schema comment documenting argument types and meaning." },
+            "defaultConfiguration": { "level": "note" }
+          }
+        ]
+      }
+    },
+    "automationDetails": {
+      "id": "ddf4865f-1a87-44b0-87cf-c36c9ca61dc9"
+    },
+    "results": [
+      {
+        "ruleId": "CL001",
+        "level": "note",
+        "message": { "text": "*kb*, *c-pl*, *b-pl* are defvar'd as nil and populated by ensure-fixtures. Intentional: performance suite caches kb across tests to avoid 200µs rebuild cost per check." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "perf.lisp" },
+            "region": { "startLine": 63 }
+          }
+        }]
+      },
+      {
+        "ruleId": "CL002",
+        "level": "note",
+        "message": { "text": "lookup-multiplier uses (lisp Fraction (kb atk-t def-t) ...) to call back to the Prolog layer. Documented in CLAUDE.md and types.ct docstring. Single call site; no alternatives possible without re-implementing the type chart in Coalton." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "types.ct" },
+            "region": { "startLine": 133 }
+          }
+        }]
+      },
+      {
+        "ruleId": "CL003",
+        "level": "note",
+        "message": { "text": "gym-party fact schema is documented in catalog.lisp file header. All fact schemas documented at top of catalog.lisp and in CLAUDE.md conventions section." },
+        "locations": [{
+          "physicalLocation": {
+            "artifactLocation": { "uri": "catalog.lisp" },
+            "region": { "startLine": 1 }
+          }
+        }]
+      }
+    ],
+    "artifacts": [
+      { "location": { "uri": "logic-engine.lisp" } },
+      { "location": { "uri": "catalog.lisp" } },
+      { "location": { "uri": "types.ct" } },
+      { "location": { "uri": "simulator.lisp" } },
+      { "location": { "uri": "tests.lisp" } },
+      { "location": { "uri": "perf.lisp" } },
+      { "location": { "uri": "package.lisp" } },
+      { "location": { "uri": "pokemon-sim.asd" } }
+    ]
+  }]
+}
