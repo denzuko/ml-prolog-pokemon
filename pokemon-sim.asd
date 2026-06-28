@@ -6,6 +6,7 @@
   :depends-on ("coalton" "coalton-asdf" "paiprolog" "arrows" "named-readtables")
   :serial t
   :components ((:file    "package")
+               (:file    "src/matrix-id")   ; net.matrix identity — loads before all other src
                (:file    "logic-engine")
                (:file    "catalog")
                (:ct-file "types")
